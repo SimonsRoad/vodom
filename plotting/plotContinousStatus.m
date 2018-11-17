@@ -34,7 +34,7 @@ plot(-n_show+1:0,num_tracked_keypoints(end-n_show+1:end));
 axis equal;
 xlabel('Frame index (0 = current)');
 ylabel('# tracked keypoints');
-title('# previously tracked keypoints')
+title('# prev. tracked keypoints')
 % Display trajectory. 
 subplot(2,4,6);
 plot(cam_positions(1,:),cam_positions(3,:)); 

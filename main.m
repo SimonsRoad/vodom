@@ -1,12 +1,20 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % vOdom - Visual Odometry Pipeline
 % Nikhilesh Alaturn, Simon Schaefer
+% Visual odometry pipeline implementation for several datasets (KITTI, 
+% Malaga, parking), based on a relative transformation between subsequent
+% images calculated on the basis of Harris feature, patch descriptors
+% and the fundamental matrix (including RANSAC outlier suppression). 
+% T - camera world transformation.  
+% S - set of pixel coordinates. 
+% C - set of correspondences. 
+% D - set of keypoint descriptors. 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc; clear all; close all;  %#ok<CLALL>
 
 % Choose dataset (0: KITTI, 1: Malaga, 2: parking). 
 global dataset; 
-dataset = 2; 
+dataset = 1; 
 
 % Set the two bootstrap frames. 
 bootstrap_frames = [1 3]; 
@@ -57,7 +65,19 @@ else
     assert(false);
 end
 
-%% Bootstrap. 
+range = (bootstrap_frames(2)+1):last_frame;
+num_frames = size(range,2) + 1; 
+% Initialise storage matrices for path and descriptors.
+cam_positions = zeros(4,num_frames);    % camera positions (homo.coords).
+cam_positions(4,:) = 1; 
+Ts = zeros(3,4,num_frames);             % camera transformations [R|T].
+Ds = cell(num_frames);                  % descriptors cell array.  
+Ss = cell(num_frames);                  % keypoint pixel coordinates. 
+
+num_tracked_keypoints = zeros(1,num_frames); % number of tracked keypoints
+                                             % for each frame. 
+
+%% Bootstrap initialization. 
 if dataset == 0
     img0 = imread([kitti_path '/00/image_0/' ...
         sprintf('%06d.png',bootstrap_frames(1))]);
@@ -79,28 +99,29 @@ else
     assert(false);
 end
 
+% Detect features in current image. 
+[S1,D1] = keypoints(img0, param('feature_max_num'), ...
+        param('feature_quality'), param('descriptor_size')); 
+[S2,D2] = keypoints(img0, param('feature_max_num'), ...
+        param('feature_quality'), param('descriptor_size')); 
+% Find matched features. 
+Cindex = matchDescriptors(D1,D2); 
+C1 = S1(:,Cindex(:,1)); 
+C2 = S2(:,Cindex(:,2)); 
+% Estimate relative transformation by determining fundamental matrix. 
+[Rwc,twc] = estimateTransformation(C1,C2,K);
+Twc = [Rwc,twc]; 
+% Previous = current association.  
+Ds{1} = D2;
+Ss{1} = S2; 
+Ts(:,:,1) = Twc; 
+num_tracked_keypoints(1) = size(Cindex,1); 
+
 %% Continuous operation
-range = (bootstrap_frames(2)+1):last_frame;
-num_frames = size(range,2); 
-
-% Initialise storage matrices for path and descriptors.
-cam_positions = zeros(4,num_frames);    % camera positions (homo.coords).
-cam_positions(4,:) = 1; 
-Ts = zeros(3,4,num_frames);             % camera transformations [R|T].
-Ds = cell(num_frames);                  % descriptors cell array.  
-Ss = cell(num_frames);                  % keypoint pixel coordinates. 
-
-num_tracked_keypoints = zeros(1,num_frames); % number of tracked keypoints
-                                             % for each frame. 
-
-% Preallocate variables. 
-T = zeros(3,4);                         % transformation k-1->k. 
-
-% Enter continous operation loop. 
-for k = 1:num_frames
+for k = 2:num_frames
     fprintf('\n\nProcessing frame %d\n=====================\n', i);
     % Select next image from dataset. 
-    i = range(k); 
+    i = range(k-1); 
     if dataset == 0
         image = imread([kitti_path '/00/image_0/' sprintf('%06d.png',i)]);
     elseif dataset == 1
@@ -116,26 +137,19 @@ for k = 1:num_frames
     % Detect features in current image. 
     [S,D] = keypoints(image, param('feature_max_num'), ...
         param('feature_quality'), param('descriptor_size')); 
-    % If first image continue without pose update as no matching possible. 
-    if k <= 1
-        prev_img = image;
-        Ds{k} = D;
-        Ss{k} = S; 
-       continue 
-    end
     % Find matched features. 
     Cindex = matchDescriptors(D,Ds{k-1}); 
-    C1 = S(Cindex(:,1),:); 
-    C2 = Ss{k-1}(Cindex(:,2),:); 
+    C1 = S1(:,Cindex(:,1)); 
+    C2 = S2(:,Cindex(:,2));  
     % Estimate relative transformation by determining fundamental matrix. 
     [R,t] = estimateTransformation(C1,C2,K);
-    T = [R,t]; 
-    cam_positions(:,k) = [T;zeros(1,3),1]*cam_positions(:,k-1); 
+    Twc = [R,t]; 
+    cam_positions(:,k) = [Twc;zeros(1,3),1]*cam_positions(:,k-1); 
     % Previous = current association.  
     prev_img = image;
     Ds{k} = D;
     Ss{k} = S; 
-    Ts(:,:,k) = T; 
+    Ts(:,:,k) = Twc; 
     num_tracked_keypoints(k) = size(Cindex,1); 
     % Refresh continous plot. Pause to make sure that plots refresh.   
     plotContinousStatus(image,C1,C2,cam_positions(1:3,1:k), ...

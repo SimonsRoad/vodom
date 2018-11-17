@@ -17,5 +17,6 @@ function [S, D] = keypoints(img, num_keypoints, quality, desc_size)
 %                               feature vector length is M=desc_size^2. 
 corners = detectHarrisFeatures(img, 'MinQuality', quality);
 S = corners.selectStrongest(num_keypoints).Location; 
-[D,S] = extractFeatures(img, S, 'Method','Block', 'BlockSize',desc_size); 
+[D,S] = extractFeatures(img, S, 'Method','Block', 'BlockSize',desc_size);
+S = S'; 
 end
