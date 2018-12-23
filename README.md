@@ -1,2 +1,0 @@
-# vodom
-Visual Odometry Pipeline
