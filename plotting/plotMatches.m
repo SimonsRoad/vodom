@@ -9,7 +9,7 @@ y_from = qm_keypoints(2, :);
 y_to = dbm_keypoints(2, :);
 figure; 
 imshow(q_img); hold on;
-plot(qm_keypoints(2, :), qm_keypoints(1, :), 'rx', 'Linewidth', 2);
-plot([y_from; y_to], [x_from; x_to], 'g-', 'Linewidth', 3);
+plot(qm_keypoints(1, :), qm_keypoints(2, :), 'rx', 'Linewidth', 2);
+plot([x_from; x_to], [y_from; y_to], 'g-', 'Linewidth', 3);
 end
 

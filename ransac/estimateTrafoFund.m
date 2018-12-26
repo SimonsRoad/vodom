@@ -1,4 +1,6 @@
-function [R, t3, cloud] = estimateTrafo(kp0, kp1, K)
+function [R, t3, cloud] = estimateTrafoFund(kp0, kp1, K)
+% Estimate transformation between previous and current image using 
+% fundamental matrix estimate (estimateFundamentalMatrix - function). 
 % @param[in]    qm_keypoints    matched camera 0 keypoints [2,L]. 
 % @param[in]    dbm_keypoints   matched camera 1 keypoints [2,L]. 
 % @param[in]    K               camera intrinsics.
@@ -8,11 +10,11 @@ function [R, t3, cloud] = estimateTrafo(kp0, kp1, K)
 p0 = [kp0;ones(1,length(kp0))];
 p1 = [kp1;ones(1,length(kp1))];
 F = estimateFundamentalMatrix(kp0.', kp1.');
-E = transpose(inv(K))*F*inv(K); 
+E = transpose(inv(K))*F*inv(K);  %#ok<MINV>
 % Given an essential matrix, compute the camera motion, i.e.,  
 % R and T such that E ~ T_x R. 
 [U,~,V] = svd(E);
-u3 = U(:,3);
+u3 = U(:,3); 
 W = [0 -1 0; 1 0 0; 0 0 1];
 Rots(:,:,1) = U*W*V.';
 Rots(:,:,2) = U*W.'*V.';

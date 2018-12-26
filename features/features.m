@@ -1,4 +1,4 @@
-function [keypoints, descriptors] = features(img, params) 
+function [keypoints, descriptors] = features(img, params, is_contop) 
 % Find and describe harris features in input image. 
 % @param[in]  img           input image. 
 % @param[out] keypoints     keypoint pixel positions [2,N]. 
@@ -9,9 +9,13 @@ function [keypoints, descriptors] = features(img, params)
 % using sample patch descriptors. 
 patch_size      = params('patch_size'); 
 kappa           = params('harris_kappa'); 
-num_kp          = params('num_keypoints'); 
 r_suppression   = params('r_suppression'); 
 r_desciptor     = params('r_desciptor'); 
+if is_contop
+    num_kp      = params('num_keypoints_cont'); 
+else
+    num_kp      = params('num_keypoints_init'); 
+end
 sobel_para = [-1 0 1];
 sobel_orth = [1 2 1];
 Ix = conv2(sobel_orth', sobel_para, img, 'valid');
