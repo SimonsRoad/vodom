@@ -101,13 +101,13 @@ else
     assert(false);
 end
 
-%% Bootstrap
+%% Bootstrap Initialization. 
 disp("Starting bootstrapping initialization ..."); 
 [P1, dc1] = features(imgs_bootstrap(1:480,:), params, false);
 [P2, dc2] = features(imgs_bootstrap(480:end,:), params, false);
 matches = matching(dc1, dc2, params);
 [Pq, Pdb] = matches2kps(matches, P2, P1);
-[R_CW, t3_CW, X] = estimateTrafoFund(Pq, Pdb, K); 
+[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan); 
 
 % Plotting - Debugging. 
 %plotMatches(qm_kps, dbm_kps, imgs_bootstrap(1:480,:)); 
@@ -122,11 +122,12 @@ trajectory = [state];  %#ok<NBRAK>
 
 disp("Initial transformation: "); 
 disp([R_CW t3_CW]); 
+fprintf('Initial number of matches: %d\n', size(matches,2));
 
-%% Continuous operation
+%% Continuous operation.
 figure; 
 for i = 2:size(imgs_contop,3)
-    fprintf('\n\nProcessing frame %d\n=====================\n', i);
+    fprintf('\nProcessing frame %d\n=====================\n', i);
     img_prev = imgs_contop(:,:,i-1); 
     img = imgs_contop(:,:,i); 
     % Get last state information. 
@@ -135,21 +136,31 @@ for i = 2:size(imgs_contop,3)
     P_prev = state_prev.P; 
     X_prev = state_prev.X; 
     % Reinitialize feature points if below threshold.
-    %if size(P_prev, 2) < params('num_keypoints_cont')
-    %    [P_prev, ~] = features(img_prev, params, true);
-    %end
-    % Apply KLT for every keypoint. 
-    [P, keep] = trackKLT(img_prev, img, P_prev, params); 
-    % Estimate transformation from previous to current frame. 
-    Pq = P(:,keep); 
-    Pdb = P_prev(:,keep); 
-    Xdb = X_prev(:,keep); 
-    [R_CW, t3_CW, ~] = estimateTrafoP3P(Pdb, Xdb, K); 
+    if size(P_prev, 2) < params('klt_min_num_kps')
+        disp("Reinitializing ... "); 
+        [P1, dc1] = features(img_prev, params, true);
+        [P2, dc2] = features(img, params, true);
+        matches = matching(dc1, dc2, params);
+        [Pq, Pdb] = matches2kps(matches, P2, P1);
+        [R_CW, t3_CW, X, ~] = estimateTrafoFund(Pq, Pdb, K, t3norm); 
+        fprintf('Reinitialization number of matches: %d\n', size(matches,2));
+    % Otherwise apply KLT for every keypoint. 
+    else
+        disp("KL Tracking ..."); 
+        [P, keep] = trackKLT(img_prev, img, P_prev, params); 
+        % Estimate transformation from previous to current frame. 
+        Pq = P(:,keep); 
+        Pdb = P_prev(:,keep); 
+        Xdb = X_prev(:,keep); 
+        [R_CW, t3_CW, ~] = estimateTrafoP3P(Pdb, Xdb, K, t3norm, params); 
+        X = X_prev;  
+        fprintf('KLT number of tracked keypoints: %d\n', size(keep,2));
+    end
     % Renew state and add to trajectory.
     state = struct; 
     state.T = [R_CW t3_CW; ones(1,4)]; 
     state.P = Pq; 
-    state.X = X_prev; 
+    state.X = X; 
     trajectory = [trajectory; state]; 
     % Plotting. 
     plotMovingKPs(Pdb, Pq, img);    

@@ -1,4 +1,4 @@
-function [R, t3, cloud] = estimateTrafoFund(kp0, kp1, K)
+function [R, t3, cloud, t3norm] = estimateTrafoFund(kp0, kp1, K, t3norm)
 % Estimate transformation between previous and current image using 
 % fundamental matrix estimate (estimateFundamentalMatrix - function). 
 % @param[in]    qm_keypoints    matched camera 0 keypoints [2,L]. 
@@ -56,4 +56,10 @@ end
 M1 = K * [R, t3];
 cloud = linearTriangulation(p0,p1,M0,M1);
 cloud = cloud(1:3,:); 
+% Renormalize scale of translational vector. 
+if isnan(t3norm)
+    t3norm = norm(t3); 
+else
+    t3 = t3/t3norm; 
+end
 end
