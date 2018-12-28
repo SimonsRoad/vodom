@@ -39,26 +39,24 @@ for i = 1:num_iterations
     end
     % Count inliers:
     projected_points = projectPoints(...
-        (R_C_W_guess(:,:,1) * X) + repmat(t_C_W_guess(:,:,1), ...
-        [1 size(X, 2)]), K);
+        (R_C_W_guess(:,:,1) * X) + ...
+        repmat(t_C_W_guess(:,:,1), [1 size(X, 2)]), K);
     difference = P - projected_points;
     errors = sum(difference.^2, 1);
     is_inlier = errors < pixel_tolerance^2;    
     % If we use p3p, also consider inliers for the alternative solution.
     projected_points = projectPoints(...
         (R_C_W_guess(:,:,2) * X) + ...
-        repmat(t_C_W_guess(:,:,2), ...
-        [1 size(X, 2)]), K);    
+        repmat(t_C_W_guess(:,:,2), [1 size(X, 2)]), K);    
     difference = P - projected_points;
     errors = sum(difference.^2, 1);
     alternative_is_inlier = errors < pixel_tolerance^2;
     if nnz(alternative_is_inlier) > nnz(is_inlier)
         is_inlier = alternative_is_inlier;
     end
-
-    if nnz(is_inlier) > max_num_inliers && ...
-            nnz(is_inlier) >= min_inlier_count
-        max_num_inliers = nnz(is_inlier);        
+    num_inlier = nnz(is_inlier); 
+    if num_inlier > max_num_inliers && num_inlier >= min_inlier_count
+        max_num_inliers = num_inlier;        
         best_inlier_mask = is_inlier;
     end
 end
@@ -67,9 +65,7 @@ if max_num_inliers == 0
     R_CW = [];
     t3_CW = [];
 else
-    M_C_W = estimatePoseDLT(...
-        P(:, best_inlier_mask>0)', ...
-        X(:, best_inlier_mask>0)', K);
+    M_C_W = dlt(P(:, best_inlier_mask>0)', X(:, best_inlier_mask>0)', K);
     R_CW = M_C_W(:, 1:3);
     t3_CW = M_C_W(:, end)/t3norm;
 end

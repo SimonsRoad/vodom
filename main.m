@@ -116,7 +116,8 @@ matches = matching(dc1, dc2, params);
 % Assign initial state. 
 state = struct; 
 state.T = [R_CW t3_CW; ones(1,4)]; 
-state.P = Pdb; 
+state.P = Pq;
+state.Pdb = Pdb; 
 state.X = X; 
 trajectory = [state];  %#ok<NBRAK>
 
@@ -156,13 +157,15 @@ for i = 2:size(imgs_contop,3)
         X = X_prev;  
         fprintf('KLT number of tracked keypoints: %d\n', size(keep,2));
     end
+    assert(isequal([R_CW t3_CW], [3,4])); 
     % Renew state and add to trajectory.
     state = struct; 
     state.T = [R_CW t3_CW; ones(1,4)]; 
     state.P = Pq; 
+    state.Pdb = Pdb; 
     state.X = X; 
     trajectory = [trajectory; state]; 
     % Plotting. 
-    plotMovingKPs(Pdb, Pq, img);    
+    plotOverall(img, trajectory); 
     pause(0.01);
 end

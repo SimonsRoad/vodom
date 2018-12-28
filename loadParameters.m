@@ -13,7 +13,7 @@ parameters('klt_num_iters') = 50;       % number of warping iterations.
 parameters('klt_lambda') = 0.1;         % bidirectional error threshold.
 parameters('klt_min_num_kps') = 50;     % min. #kps for KLT tracking. 
 parameters('ransac_num_iter') = 1000;   % #ransac optimization iterations.
-parameters('ransac_pixel_tolerance') = 10; % acceptable pixel reproj. error.  
+parameters('ransac_pixel_tolerance') = 50; % acceptable pixel reproj. error.  
 parameters('ransac_min_inlier') = 30;   % min. #acceptable ransac inlier.
 parameters('ransac_num_samples') = 3;   % sample size for ransac.
 
