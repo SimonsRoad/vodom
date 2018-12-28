@@ -2,7 +2,7 @@
 % vodom - Visual Odometry Pipeline
 % Nikhilesh Alatur, Simon Schaefer
 %##########################################################################
-clear all; clc;  %#ok<CLALL>
+clear all; close all; clc;  %#ok<CLALL>
 
 addpath('features/'); 
 addpath('klt/'); 
@@ -153,7 +153,11 @@ for i = 2:size(imgs_contop,3)
         Pq = P(:,keep); 
         Pdb = P_prev(:,keep); 
         Xdb = X_prev(:,keep); 
-        [R_CW, t3_CW, ~] = estimateTrafoP3P(Pdb, Xdb, K, t3norm, params); 
+        [R_CW, t3_CW, ~] = estimateTrafoP3P(Pq, Xdb, K, t3norm, params);%estimateTrafoP3P(Pdb, Xdb, K, t3norm, params);
+        if(not(isequal(size([R_CW t3_CW]), [3,4])))
+           disp('Hack!'); 
+           [R_CW, t3_CW, ~, ~] = estimateTrafoFund(Pq, Pdb, K, t3norm); 
+        end
         X = X_prev;  
         fprintf('KLT number of tracked keypoints: %d\n', size(keep,2));
     end
