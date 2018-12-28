@@ -157,7 +157,7 @@ for i = 2:size(imgs_contop,3)
         X = X_prev;  
         fprintf('KLT number of tracked keypoints: %d\n', size(keep,2));
     end
-    assert(isequal([R_CW t3_CW], [3,4])); 
+    assert(isequal(size([R_CW t3_CW]), [3,4])); 
     % Renew state and add to trajectory.
     state = struct; 
     state.T = [R_CW t3_CW; ones(1,4)]; 
