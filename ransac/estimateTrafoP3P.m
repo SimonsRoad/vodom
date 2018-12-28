@@ -62,7 +62,6 @@ for i = 1:num_iterations
 end
 
 if max_num_inliers == 0
-    disp('Fuck')
     R_CW = [];
     t3_CW = [];
 else
