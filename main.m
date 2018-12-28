@@ -123,7 +123,7 @@ trajectory = [state];  %#ok<NBRAK>
 
 disp("Initial transformation: "); 
 disp([R_CW t3_CW]); 
-fprintf('Initial number of matches: %d\n', size(matches,2));
+fprintf('Initial number of matches: %d\n', size(Pdb,2));
 
 %% Continuous operation.
 figure; 
