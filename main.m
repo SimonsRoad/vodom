@@ -125,6 +125,27 @@ disp("Initial transformation: ");
 disp([R_CW t3_CW]); 
 fprintf('Initial number of matches: %d\n', size(Pdb,2));
 
+%% Testing.
+% clc
+% disp("Starting bootstrapping initialization ..."); 
+% [P1, dc1] = features(imgs_bootstrap(1:480,:), params, false);
+% [P2, dc2] = features(imgs_bootstrap(480:end,:), params, false);
+% matches = 1:size(P1,2); 
+% [Pq, Pdb] = matches2kps(matches, P2, P1);
+% [R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan)
+% 
+% state_prev = trajectory(end); 
+% T = state_prev.T; 
+% P = state_prev.P; 
+% X = state_prev.X; 
+% 
+% projected = projectPoints(X, K); 
+% for i = 1:size(P,2)
+%    disp("----------------"); 
+%    disp(projected(:,i)); 
+%    disp(P(:,i)); 
+% end
+
 %% Continuous operation.
 figure; 
 for i = 2:size(imgs_contop,3)
@@ -153,7 +174,7 @@ for i = 2:size(imgs_contop,3)
         Pq = P(:,keep); 
         Pdb = P_prev(:,keep); 
         Xdb = X_prev(:,keep); 
-        [R_CW, t3_CW, ~] = estimateTrafoP3P(Pq, Xdb, K, t3norm, params);%estimateTrafoP3P(Pdb, Xdb, K, t3norm, params);
+        [R_CW, t3_CW, ~] = estimateTrafoP3P(Pq, Xdb, K, t3norm, params); 
         if(not(isequal(size([R_CW t3_CW]), [3,4])))
            disp('Hack!'); 
            [R_CW, t3_CW, ~, ~] = estimateTrafoFund(Pq, Pdb, K, t3norm); 
