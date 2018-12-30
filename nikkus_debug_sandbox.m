@@ -3,22 +3,22 @@ clear all;
 clc;
 %%
 close all;
-i = 2;
-img_prev = img0;
-img = img1;
-pt = [1,2,3];
 figure;
+%img_prev = img0;
+%img = img1;
+pt = [1:41];   %5,7,8
+subplot(1,2,1);
 imshow(img_prev);
 hold on;
 plot(Pdb(2, pt), Pdb(1, pt), 'rx', 'Linewidth', 2);
 %
-figure;
+subplot(1,2,2);
 imshow(img);
 hold on;
 plot(Pq(2, pt), Pq(1, pt), 'gx', 'Linewidth', 2);
 
 %figure;
-plotPointCloud(X(:,pt))
+%plotPointCloud(X(:,pt))
 
 
 %% 

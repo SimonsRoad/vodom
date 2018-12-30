@@ -181,17 +181,13 @@ for i = 2:size(imgs_contop,3)
         %X = Xdb; %BUGFIX: Xdb, instead of X_prev  
         %fprintf('KLT number of tracked keypoints: %d\n', nnz(keep));
         
-        pointTracker = vision.PointTracker('MaxBidirectionalError',inf);
+        pointTracker = vision.PointTracker('MaxBidirectionalError',1);
         initialize(pointTracker, fliplr(P_prev'), img_prev);
         %[points,point_validity] = step(pointTracker, I);
         [points,validity] = pointTracker(img);
-        Pq = [];
-        Pdb = [];
+        keeps = validity'; 
         for l=1:size(validity,1)
-           if(validity(l)==1)
-               Pq = [Pq,(fliplr(points(l,:)))']
-               Pdb = [Pdb,P_prev(:,l)]
-           end
+           if() 
         end
         
         %#######################KLT APPROACH###############################
