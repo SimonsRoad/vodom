@@ -127,8 +127,8 @@ matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
 [~, query_indices, match_indices] = find(matches);
 Pq = keypoints_2(:, query_indices);
 Pdb = keypoints(:, match_indices);     
-
-[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
+t_norm_base = ground_truth(bootstrap_frames(2)) - ground_truth(bootstrap_frames(1));
+[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, t_norm_base);
 
 %% Plotting - Debugging. 
 % plotMatches(flipud(query_kps), flipud(database_kps), img0); 
@@ -184,9 +184,9 @@ for i = 2:size(imgs_contop,3)
         %#######################KLT APPROACH###############################
         
         %#######################P3P APPROACH###############################
-        [R_C_W, t_C_W, query_keypoints, all_matches, best_inlier_mask, ...
-            max_num_inliers_history] = ransacLocalization(...
-            img, img_prev, P_prev, X_prev(1:3,:), K);
+%         [R_C_W, t_C_W, query_keypoints, all_matches, best_inlier_mask, ...
+%             max_num_inliers_history] = ransacLocalization(...
+%             img, img_prev, P_prev, X_prev(1:3,:), K);
         % !!!NOTE: P3P isn't working properly! 
         %#######################P3P APPROACH###############################
         
@@ -209,8 +209,19 @@ for i = 2:size(imgs_contop,3)
         X = X_prev(:,match_indices);
         
         % 4.)estimateTrafoFund without caring about pointcloud.
-        [R_CW, t3_CW, ~, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
+        %[R_CW, t3_CW, ~, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
         
+        %4.a) Try MATLAB's P3P
+        imagePoints = fliplr(Pq');
+        worldPoints = X(1:3,:);
+        worldPoints = worldPoints';
+        intrinsics = cameraIntrinsics([K(1,1) K(2,2)],[K(1,3) K(2,3)],size(img0));
+        K_intrinsics = [331.37,0,0;...
+            0,369.5680,0;...
+            320,240,0];
+        cameraParams = cameraParameters('IntrinsicMatrix', K_intrinsics);
+        
+        [worldOrientation,worldLocation] = estimateWorldCameraPose(imagePoints,worldPoints,cameraParams);
         % 4.) Concatenate.
         % !!!PROBLEM: Although this works reliably, because we estimated the
         % fundamental matrix independently from the point cloud, we don't

@@ -22,7 +22,7 @@ if ds == 0
 elseif ds == 1
     parameters('bootstrap_frames') = [1 2]; 
 elseif ds == 2
-    parameters('bootstrap_frames') = [40 41];%[1 10]; % We need to start here, as we get >40 features after frame 40, but only 20 in the beginning, furthermore a large step ensures smal depth error.
+    parameters('bootstrap_frames') = [40 50];%[1 10]; % We need to start here, as we get >40 features after frame 40, but only 20 in the beginning, furthermore a large step ensures smal depth error.
 else 
     assert(false)
 end
