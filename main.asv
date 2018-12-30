@@ -94,7 +94,6 @@ elseif ds == 2
     imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame)); 
     k = 1; 
     for i = (bootstrap_frames(2)+1):last_frame
-
         img = im2uint8(rgb2gray(imread([parking_path ...
             sprintf('/images/img_%05d.png',i)])));
         imgs_contop(:,:,k) = img; 
@@ -189,23 +188,23 @@ for i = 2:size(imgs_contop,3)
 %         %[R_CW, t3_CW, ~, ~] = estimateTrafoFund(Pq, Pdb, K, nan);
         %###########################################################
         % 1.) Detect and extract features in current view.
-        descriptors = describeKeypoints(img_prev, P_prev, descriptor_radius);
-
-        harris_scores_2 = harris(img, harris_patch_size, harris_kappa);
+        harris_scores_2 = harris(img1, harris_patch_size, harris_kappa);
         keypoints_2 = selectKeypoints(...
-            harris_scores_2, num_keypoints, nonmaximum_supression_radius);
-        descriptors_2 = describeKeypoints(img, keypoints_2, descriptor_radius);
-        
-        % 2.)Directly match them to database (prev)
+        harris_scores_2, num_keypoints, nonmaximum_supression_radius);
+        descriptors_2 = describeKeypoints(img1, keypoints_2, descriptor_radius);
+
         matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
 
         [~, query_indices, match_indices] = find(matches);
         Pq = keypoints_2(:, query_indices);
-        Pdb = P_prev(:, match_indices);     
+        Pdb = keypoints(:, match_indices);     
+
+[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
 
         
+        % 2.)Directly match them to database (prev)
+        
         % 3.)estimateTrafoFund without caring about pointcloud.
-        [R_CW, t3_CW, ~, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
         
         % 4.) Concatenate.
         

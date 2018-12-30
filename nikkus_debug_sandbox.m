@@ -4,9 +4,9 @@ clc;
 %%
 close all;
 i = 2;
-img_prev = img0;
-img = img1;
-pt = [1:41];%[1,4,6,8,9,11];
+%img_prev = img0;
+%img = img1;
+pt = [25];%[1,4,6,8,9,11];
 figure;
 imshow(img_prev);
 hold on;
@@ -18,7 +18,7 @@ hold on;
 plot(Pq(2, pt), Pq(1, pt), 'gx', 'Linewidth', 2);
 
 %figure;
-plotPointCloud(X(:,pt))
+%plotPointCloud(X(:,pt))
 
 
 %% 
