@@ -6,9 +6,7 @@ close all;
 i = 2;
 img_prev = img0;
 img = img1;
-Pdb = database_kps;
-Pq = query_kps;
-pt = 11;%[1,4,6,8,9,11];
+pt = [1:41];%[1,4,6,8,9,11];
 figure;
 imshow(img_prev);
 hold on;
@@ -20,7 +18,7 @@ hold on;
 plot(Pq(2, pt), Pq(1, pt), 'gx', 'Linewidth', 2);
 
 %figure;
-%plotPointCloud(X(:,pt))
+plotPointCloud(X(:,pt))
 
 
 %% 
@@ -59,3 +57,16 @@ scatter(position(:,1),position(:,2))
 hold on
 xlabel('X')
 ylabel('Z')
+
+%%
+I_R = imread('000000.png');
+%I_R = imresize(I_R, 0.25);
+keypoints_rc = load('keypoints.txt');% / 4;
+keypoints_flip = flipud(keypoints_rc(1:50, :)');
+figure(4);
+imshow(I_R);
+hold on;
+plot(keypoints_flip(1, :), keypoints_flip(2, :), 'rx');
+hold off;
+I_prev = I_R;
+pause(0.1);

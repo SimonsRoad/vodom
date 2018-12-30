@@ -106,13 +106,6 @@ end
 
 %% Bootstrap Initialization.
 disp("Starting bootstrapping initialization ..."); 
-% [P1, dc1] = features(img0, params, false);   % P1, P2 have form [v;u]
-% [P2, dc2] = features(img1, params, false); % P1<->Pdb ; P2<->Pq
-% matches = matching(dc1, dc2, params);
-% [Pq, Pdb] = matches2kps(matches, P2, P1);   
-% %%
-%[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan); % BUG?: R_CW is nowhere close to identity.
-% ##########################DEBUG START: BOOTSTRAP#######################
 harris_patch_size = 9;
 harris_kappa = 0.08;
 num_keypoints = 200;
@@ -137,14 +130,16 @@ Pdb = keypoints(:, match_indices);
 
 [R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
 
-% M = estimatePoseDLT(fliplr(query_kps'), (X(1:3,:))', K)
-% NOTE: I have verified, that Until here, the algorithm runs correctly, the
-% matched points are good and the triangulated landmarks (X) make sense as
-% well. Only problem is with triangulated landmarks, where the matched
-% features were too close together -> Big depth error.
-% However, DLT is returning wrong results. When feeding X and query_kpts
-% to DLT, the output doesn't resemble what we got from bootstrapping!
-% ##########################DEBUG-END: BOOTSTRAP#######################
+%M = estimatePoseDLT(fliplr(Pq'), (X(1:3,:))', K);    % BUG: Due to big depth error, DLT also yields shitty results!
+%lol = M(:,4);
+%lol=lol/norm(lol)
+% NOTE: Until here, the algorithm runs correctly, the matched points are good $
+% and the triangulated landmarks (X) make sense as
+% well. 
+% Only problem is that quite often the depth error is way too big (to small
+% movement from frame2frame or too big and then only far features are
+% tracked. This in turn leads to a high depth error and this in turn to a
+% wrong DLT result.
 
 %% Plotting - Debugging. 
 % plotMatches(flipud(query_kps), flipud(database_kps), img0); 
@@ -162,27 +157,6 @@ disp("Initial transformation: ");
 disp([R_CW t3_CW]); 
 fprintf('Initial number of matches: %d\n', size(Pq,2));
 
-%% Testing.
-% clc
-% disp("Starting bootstrapping initialization ..."); 
-% [P1, dc1] = features(imgs_bootstrap(1:480,:), params, false);
-% [P2, dc2] = features(imgs_bootstrap(480:end,:), params, false);
-% matches = 1:size(P1,2); 
-% [Pq, Pdb] = matches2kps(matches, P2, P1);
-% [R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan)
-% 
-% state_prev = trajectory(end); 
-% T = state_prev.T; 
-% P = state_prev.P; 
-% X = state_prev.X; 
-% 
-% projected = projectPoints(X, K); 
-% for i = 1:size(P,2)
-%    disp("----------------"); 
-%    disp(projected(:,i)); 
-%    disp(P(:,i)); 
-% end
-
 %% Continuous operation.
 figure; 
 for i = 2:size(imgs_contop,3)
@@ -196,69 +170,22 @@ for i = 2:size(imgs_contop,3)
     X_prev = state_prev.X; 
     % Reinitialize feature points if below threshold.
     if false %size(P_prev, 2) < 20%params('klt_min_num_kps')   % DEBUG: Don't use this for now.
-        disp("Reinitializing ... "); 
-        % BUG: The world frame gets reset, when do it like this!
-%         [P1, dc1] = features(img_prev, params, true);
-%         [P2, dc2] = features(img, params, true);
-%         matches = matching(dc1, dc2, params);
-%         [Pq, Pdb] = matches2kps(matches, P2, P1);
-%         [R_CW, t3_CW, X, ~] = estimateTrafoFund(Pq, Pdb, K, t3norm);
-
-        % ####################DEBUG START: RE-INIT#############################
-        harris_scores = harris(img_prev, harris_patch_size, harris_kappa);
-        keypoints = selectKeypoints(...
-        harris_scores, num_keypoints, nonmaximum_supression_radius);
-        descriptors = describeKeypoints(img_prev, keypoints, descriptor_radius);
-        
-        harris_scores_2 = harris(img, harris_patch_size, harris_kappa);
-        keypoints_2 = selectKeypoints(...
-        harris_scores_2, num_keypoints, nonmaximum_supression_radius);
-        descriptors_2 = describeKeypoints(img, keypoints_2, descriptor_radius);
-        
-        matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
-        [~, query_indices, match_indices] = find(matches);
-        query_kps = keypoints_2(:, query_indices);
-        database_kps = keypoints(:, match_indices); 
-        
-        Pq = query_kps;
-        Pdb = database_kps;
-        [R_CW, t3_CW, X, ~] = estimateTrafoFund(Pq, Pdb, K, t3norm);
-        % ####################DEBUG END: RE-INIT#############################
-        
+        disp("Reinitializing ... ");        
         fprintf('Reinitialization number of matches: %d\n', size(matches,2));
     % Otherwise apply KLT for every keypoint. 
     else
-%         disp("KL Tracking ..."); 
-%         [P, keep] = trackKLT(img_prev, img, P_prev, params); % BUG: KLT doesn' track well. The locations don't make sens and inconsitent what patch harris returns.
-%         % Estimate transformation from previous to current frame. 
-%         Pq = P(:,keep); 
-%         Pdb = P_prev(:,keep); 
-%         Xdb = X_prev(:,keep); 
-%         %[R_CW, t3_CW, ~] = estimateTrafoP3P(Pq, Xdb, K, t3norm, params); % BUG: Something's wrong! Output from p3p is nowhere close to a rotation matrix!
-% %         M = dlt(fliplr(Pq'), (Xdb(1:3,:))', K); % Because P3P is failing, just do DLT with the tracked keypoints and the landmark pointcloud.
-% %         R_CW = M(:,1:3);
-% %         t3_CW = M(:,4);
-        %##################DEBUG-START: KLT###############################
-        harris_scores = harris(img_prev, harris_patch_size, harris_kappa);
-        keypoints = selectKeypoints(...
-        harris_scores, num_keypoints, nonmaximum_supression_radius);
-        descriptors = describeKeypoints(img_prev, keypoints, descriptor_radius);
-        harris_scores_2 = harris(img, harris_patch_size, harris_kappa);
-        keypoints_2 = selectKeypoints(...
-        harris_scores_2, num_keypoints, nonmaximum_supression_radius);
-        descriptors_2 = describeKeypoints(img, keypoints_2, descriptor_radius);
-
-        matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
-
-        [~, query_indices, match_indices] = find(matches);
-        Pq = keypoints_2(:, query_indices);
-        Pdb = keypoints(:, match_indices);     
-
-        [R_CcCp, t3_CcCp, ~, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
-
+        disp("KL Tracking ..."); 
+        %[P, keep] = trackKLT(img_prev, img, (flipud(P_prev))', params); % BUG: Feeding [y x] instead of [x y]
+        [W, p_hist] = trackKLT(I_R, I, x_T, r_T, num_iters)
+        % Estimate transformation from previous to current frame. 
+        Pq = P(:,keep); 
+        Pdb = P_prev(:,keep); 
+        Xdb = X_prev(:,keep); 
+        %[R_CW, t3_CW, ~] = estimateTrafoP3P(Pq, Xdb, K, t3norm, params); % BUG: Something's wrong! Output from p3p is nowhere close to a rotation matrix!
+%         M = dlt(fliplr(Pq'), (Xdb(1:3,:))', K); % Because P3P is failing, just do DLT with the tracked keypoints and the landmark pointcloud.
+%         R_CW = M(:,1:3);
+%         t3_CW = M(:,4);
         %[R_CW, t3_CW, ~, ~] = estimateTrafoFund(Pq, Pdb, K, nan);
-        
-        %##################DEBUG-START: KLT###############################
         X = Xdb; %BUGFIX: Xdb, instead of X_prev  
         fprintf('KLT number of tracked keypoints: %d\n', nnz(keep));
     end
