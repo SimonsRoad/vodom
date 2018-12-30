@@ -104,7 +104,6 @@ else
     assert(false);
 end
 
-
 %% Bootstrap Initialization.
 disp("Starting bootstrapping initialization ..."); 
 harris_patch_size = 9;
@@ -158,13 +157,16 @@ for i = 2:size(imgs_contop,3)
     T_prev = state_prev.T; 
     P_prev = state_prev.P; 
     X_prev = state_prev.X; 
-    % Reinitialize feature points if below threshold.
-    if false %size(P_prev, 2) < params('klt_min_num_kps')   % DEBUG: Don't use this for now.
+    % Reinitialize feature points if below threshold
+    % !!!NOTE: DON'T DO IT HERE! FIRST WE NEED A MOTION ESTIMATE BEFORE WE CAN
+    % EVEN TRIANGULATE NEW LANDMARKS!!!
+    if false %size(P_prev, 2) < params('klt_min_num_kps')  
         disp("Reinitializing ... ");        
         fprintf('Reinitialization number of matches: %d\n', size(matches,2));
     % Otherwise apply KLT for every keypoint. 
     else
         disp("KL Tracking ..."); 
+        %#######################KLT APPROACH###############################
         %[P, keep] = trackKLT(img_prev, img, (flipud(P_prev))', params); % BUG: Feeding [y x] instead of [x y]
 %         [W, p_hist] = trackKLT(I_R, I, x_T, r_T, num_iters)
 %         % Estimate transformation from previous to current frame. 
@@ -179,7 +181,16 @@ for i = 2:size(imgs_contop,3)
         %X = Xdb; %BUGFIX: Xdb, instead of X_prev  
         %fprintf('KLT number of tracked keypoints: %d\n', nnz(keep));
         
-        %#######################DON'T USE KLT##############################
+        %#######################KLT APPROACH###############################
+        
+        %#######################P3P APPROACH###############################
+        [R_C_W, t_C_W, query_keypoints, all_matches, best_inlier_mask, ...
+            max_num_inliers_history] = ransacLocalization(...
+            img, img_prev, P_prev, X_prev(1:3,:), K);
+        % !!!NOTE: P3P isn't working properly! 
+        %#######################P3P APPROACH###############################
+        
+        %#######################FUNDAMENTAL MATRIX APPROACH################
         % 1.) Extract descriptors from database.
         descriptors = describeKeypoints(img_prev, P_prev, descriptor_radius);
 
@@ -201,19 +212,17 @@ for i = 2:size(imgs_contop,3)
         [R_CW, t3_CW, ~, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
         
         % 4.) Concatenate.
-        % !!!PROBLEM:Although this works reliably, because we estimated the
+        % !!!PROBLEM: Although this works reliably, because we estimated the
         % fundamental matrix independently from the point cloud, we don't
         % know the relation to the scale. If we had done P3P or DLT, we had
         % used directly the 3D(database)<->2D(query) relation and we would
         % have gotten the scale automatically. But now, we don't have the
         % scale!
-        
-        %###########################################################
+        %#######################FUNDAMENTAL MATRIX APPROACH################
     end
     assert(isequal(size([R_CW t3_CW]), [3,4])); 
-    %#########################Triangulate new landmarks############
-    % If too little features kept: Triangulate new landmarks, by using the
-    % just computed R_CW, t_CW.
+    
+    % Triangulate new landmarks, AFTER motion has been estimated.
     if size(X,2)<30
         disp("Triangulating new landmarks...")
         harris_scores = harris(img_prev, harris_patch_size, harris_kappa);
@@ -235,15 +244,16 @@ for i = 2:size(imgs_contop,3)
         [~, ~, X_new, ~] = estimateTrafoFund(Pq, Pdb, K, norm(t3_CW));
         
         X = inv(T_prev)*X_new;  % Use the T_CW of the previous frame to bring back everything to world frame.
-    end    
-    %######################################################################
+    end
+    
     % Renew state and add to trajectory.
     state = struct; 
     state.T = [R_CW t3_CW; ones(1,4)]; 
     state.P = Pq; 
     state.Pdb = Pdb; 
     state.X = X; 
-    trajectory = [trajectory; state]; 
+    trajectory = [trajectory; state];
+    
     % Plotting. 
     plotOverall(img, trajectory); 
     pause(0.01);

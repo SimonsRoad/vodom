@@ -15,7 +15,7 @@ descriptor_radius = 9;
 match_lambda = 5;
 
 % Other parameters.
-num_keypoints = 1000;
+num_keypoints = 100;
 
 num_iterations = 200;
 pixel_tolerance = 10;
@@ -30,12 +30,17 @@ query_descriptors = describeKeypoints(...
     query_image, query_keypoints, descriptor_radius);
 database_descriptors = describeKeypoints(...
     database_image, database_keypoints, descriptor_radius);
-all_matches = matchDescriptors(...
-    query_descriptors, database_descriptors, match_lambda);
-% Drop unmatched keypoints and get 3d landmarks for the matched ones.
-matched_query_keypoints = query_keypoints(:, all_matches > 0);
-corresponding_matches = all_matches(all_matches > 0);
-corresponding_landmarks = p_W_landmarks(:, corresponding_matches);
+% all_matches = matchDescriptors(...
+%     query_descriptors, database_descriptors, match_lambda);
+% % Drop unmatched keypoints and get 3d landmarks for the matched ones.
+% matched_query_keypoints = query_keypoints(:, all_matches > 0);
+% corresponding_matches = all_matches(all_matches > 0);
+% corresponding_landmarks = p_W_landmarks(:, corresponding_matches);
+all_matches = matchDescriptors(query_descriptors, database_descriptors, match_lambda);
+[~, query_indices, match_indices] = find(all_matches);
+matched_query_keypoints = query_keypoints(:, query_indices);
+%Pdb = P_prev(:, match_indices);     
+corresponding_landmarks = p_W_landmarks(:,match_indices);
 
 % Initialize RANSAC.
 best_inlier_mask = zeros(1, size(matched_query_keypoints, 2));
@@ -102,6 +107,8 @@ for i = 1:num_iterations
             nnz(is_inlier) >= min_inlier_count
         max_num_inliers = nnz(is_inlier);        
         best_inlier_mask = is_inlier;
+        [U,~,V] = svd(R_C_W_best_loop);
+        R_tilde = U*V'
         
         R_C_W_best = R_C_W_best_loop;
         t_C_W_best = t_C_W_best_loop;
