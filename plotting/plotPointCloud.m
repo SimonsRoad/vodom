@@ -4,6 +4,11 @@ function plotPointCloud(cloud)
 figure; 
 xs = cloud(1,:); 
 ys = cloud(2,:); 
-plot(ys, xs, '*');
+zs = cloud(3,:);
+
+scatter3(xs',ys',zs');
+xlabel('X');
+ylabel('Y');
+zlabel('Z');
 end
 

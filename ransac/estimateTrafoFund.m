@@ -11,6 +11,24 @@ p0 = [flipud(kp0);ones(1,length(kp0))];%[kp0;ones(1,length(kp0))]; % BUG: need f
 p1 = [flipud(kp1);ones(1,length(kp1))];%[kp1;ones(1,length(kp1))]; % BUG: need flipud,currently [y;x;1]
 F = estimateFundamentalMatrix(fliplr(kp0'), fliplr(kp1'));%estimateFundamentalMatrix(kp0', kp1');  % BUG: need fliplr(kp0'),fliplr(kp1')
 E = K'*F*K;%transpose(inv(K))*F*inv(K);  % BUG: Incorrect backtransformation-> Slide 29/Lecture 8 %#ok<MINV>
+
+% Obtain extrinsic parameters (R,t) from E
+[Rots,u3] = decomposeEssentialMatrix(E);
+
+% Disambiguate among the four possible configurations
+[R,t3] = disambiguateRelativePose(Rots,u3,p0,p1,K,K);
+if isnan(t3norm)
+    t3 = t3/norm(t3);   % Because we do svd, this will already have unit length!
+    t3norm = norm(t3); 
+else
+    t3 = t3/t3norm; % BUG: Shouldn't we multiply it with t3norm?
+end
+% Triangulate a point cloud using the final transformation (R,T)
+M1 = K * eye(3,4);
+M2 = K * [R, t3];
+cloud = linearTriangulation(p0,p1,M1,M2);
+
+%##########################################################################
 % % Singular value decomposition. 
 % [U,S,V] = svd(E);
 % % Set smallest singular value to 0. 
@@ -71,19 +89,5 @@ E = K'*F*K;%transpose(inv(K))*F*inv(K);  % BUG: Incorrect backtransformation-> S
 % M1 = K * [R, t3];
 % cloud = linearTriangulation(p0,p1,M0,M1);
 % cloud = cloud(1:3,:); 
-
-% Obtain extrinsic parameters (R,t) from E
-[Rots,u3] = decomposeEssentialMatrix(E);
-
-% Disambiguate among the four possible configurations
-[R,t3] = disambiguateRelativePose(Rots,u3,p0,p1,K,K);
-if isnan(t3norm)
-    t3norm = 1;%norm(t3); 
-else
-    %t3 = t3/t3norm; 
-end
-% Triangulate a point cloud using the final transformation (R,T)
-M1 = K * eye(3,4);
-M2 = K * [R, t3];
-cloud = linearTriangulation(p0,p1,M1,M2);
+%##########################################################################
 end

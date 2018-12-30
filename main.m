@@ -9,7 +9,7 @@ addpath('klt/');
 addpath('plotting/'); 
 addpath('ransac/'); 
 
-addpath('debug_new/'); %Debug, code from exercise solution.
+addpath('debug_new/'); %Debug: Functions 1:1 from exercise solution.
 
 disp("################################")
 disp("vodom - Visual Odometry Pipeline")
@@ -103,8 +103,16 @@ else
     assert(false);
 end
 
-%% Nikku's Debug Ecke
-%##########################ANFANG#######################
+
+%% Bootstrap Initialization.
+disp("Starting bootstrapping initialization ..."); 
+% [P1, dc1] = features(img0, params, false);   % P1, P2 have form [v;u]
+% [P2, dc2] = features(img1, params, false); % P1<->Pdb ; P2<->Pq
+% matches = matching(dc1, dc2, params);
+% [Pq, Pdb] = matches2kps(matches, P2, P1);   
+% %%
+%[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan); % BUG?: R_CW is nowhere close to identity.
+% ##########################DEBUG START: BOOTSTRAP#######################
 harris_patch_size = 9;
 harris_kappa = 0.08;
 num_keypoints = 200;
@@ -124,20 +132,19 @@ descriptors_2 = describeKeypoints(img1, keypoints_2, descriptor_radius);
 matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
 
 [~, query_indices, match_indices] = find(matches);
-query_kps = keypoints_2(:, query_indices);
-database_kps = keypoints(:, match_indices);     
+Pq = keypoints_2(:, query_indices);
+Pdb = keypoints(:, match_indices);     
 
-[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(query_kps, database_kps, K, nan);
-% %######################ENDE VON NIKKUS DEBUG ECKE
+[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
 
-%% Bootstrap Initialization.
-disp("Starting bootstrapping initialization ..."); 
-% [P1, dc1] = features(img0, params, false);   % P1, P2 have form [v;u]
-% [P2, dc2] = features(img1, params, false); % P1<->Pdb ; P2<->Pq
-% matches = matching(dc1, dc2, params);
-% [Pq, Pdb] = matches2kps(matches, P2, P1);   
-% %%
-%[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan); % BUG?: R_CW is nowhere close to identity.
+% M = estimatePoseDLT(fliplr(query_kps'), (X(1:3,:))', K)
+% NOTE: I have verified, that Until here, the algorithm runs correctly, the
+% matched points are good and the triangulated landmarks (X) make sense as
+% well. Only problem is with triangulated landmarks, where the matched
+% features were too close together -> Big depth error.
+% However, DLT is returning wrong results. When feeding X and query_kpts
+% to DLT, the output doesn't resemble what we got from bootstrapping!
+% ##########################DEBUG-END: BOOTSTRAP#######################
 
 %% Plotting - Debugging. 
 % plotMatches(flipud(query_kps), flipud(database_kps), img0); 
@@ -146,8 +153,8 @@ disp("Starting bootstrapping initialization ...");
 %% Assign initial state. 
 state = struct; 
 state.T = [R_CW t3_CW; ones(1,4)]; 
-state.P = query_kps;%Pq;
-state.Pdb = database_kps;% Pdb; 
+state.P = Pq;
+state.Pdb = Pdb; 
 state.X = X; 
 trajectory = [state];  %#ok<NBRAK>
 
@@ -188,21 +195,16 @@ for i = 2:size(imgs_contop,3)
     P_prev = state_prev.P; 
     X_prev = state_prev.X; 
     % Reinitialize feature points if below threshold.
-    if size(P_prev, 2) < 20%params('klt_min_num_kps')   %DEBUG: 
+    if false %size(P_prev, 2) < 20%params('klt_min_num_kps')   % DEBUG: Don't use this for now.
         disp("Reinitializing ... "); 
-        % BUG2FIX: Detect and Match features between current and previous
-        % image, and then USE THE RELATIVE TRANSFORMATION T_Curr_Prev,
-        % which can be easily retrieved from the state trajectory, and
-        % triangulate a NEW pointcloud, based on what we are seeing
-        % currently and discard the pointcloud we have used so far. THEN
-        % based on this point cloud estimate your state by dlt!
+        % BUG: The world frame gets reset, when do it like this!
 %         [P1, dc1] = features(img_prev, params, true);
 %         [P2, dc2] = features(img, params, true);
 %         matches = matching(dc1, dc2, params);
 %         [Pq, Pdb] = matches2kps(matches, P2, P1);
 %         [R_CW, t3_CW, X, ~] = estimateTrafoFund(Pq, Pdb, K, t3norm);
 
-        % ####################DEBUG#############################
+        % ####################DEBUG START: RE-INIT#############################
         harris_scores = harris(img_prev, harris_patch_size, harris_kappa);
         keypoints = selectKeypoints(...
         harris_scores, num_keypoints, nonmaximum_supression_radius);
@@ -221,7 +223,7 @@ for i = 2:size(imgs_contop,3)
         Pq = query_kps;
         Pdb = database_kps;
         [R_CW, t3_CW, X, ~] = estimateTrafoFund(Pq, Pdb, K, t3norm);
-        % ##########################END DEBUG####################
+        % ####################DEBUG END: RE-INIT#############################
         
         fprintf('Reinitialization number of matches: %d\n', size(matches,2));
     % Otherwise apply KLT for every keypoint. 
@@ -232,11 +234,46 @@ for i = 2:size(imgs_contop,3)
         Pq = P(:,keep); 
         Pdb = P_prev(:,keep); 
         Xdb = X_prev(:,keep); 
-        [R_CW, t3_CW, ~] = estimateTrafoP3P(Pq, Xdb, K, t3norm, params); 
-        X = X_prev;  
-        fprintf('KLT number of tracked keypoints: %d\n', size(keep,2));
+        %[R_CW, t3_CW, ~] = estimateTrafoP3P(Pq, Xdb, K, t3norm, params); % BUG: Something's wrong! Output from p3p is nowhere close to a rotation matrix!
+        M = dlt(fliplr(Pq'), (Xdb(1:3,:))', K); % Because P3P is failing, just do DLT with the tracked keypoints and the landmark pointcloud.
+        R_CW = M(:,1:3);
+        t3_CW = M(:,4);
+        X = Xdb; %BUGFIX: Xdb, instead of X_prev  
+        fprintf('KLT number of tracked keypoints: %d\n', nnz(keep));
     end
     assert(isequal(size([R_CW t3_CW]), [3,4])); 
+    %#########################DEBUG-START: Triangulate new landmarks############
+    % If too little features kept: Triangulate new landmarks, by using the
+    % just computed R_CW, t_CW.
+    if nnz(keep)<15
+        disp("Triangulating new landmarks...")
+        % 1.) Detect and match features between img, img_prev.
+        harris_scores = harris(img_prev, harris_patch_size, harris_kappa);
+        keypoints = selectKeypoints(...
+        harris_scores, num_keypoints, nonmaximum_supression_radius);
+        descriptors = describeKeypoints(img_prev, keypoints, descriptor_radius);
+        
+        harris_scores_2 = harris(img, harris_patch_size, harris_kappa);
+        keypoints_2 = selectKeypoints(...
+        harris_scores_2, num_keypoints, nonmaximum_supression_radius);
+        descriptors_2 = describeKeypoints(img, keypoints_2, descriptor_radius);
+        
+        matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
+        [~, query_indices, match_indices] = find(matches);
+        query_kps = keypoints_2(:, query_indices);
+        database_kps = keypoints(:, match_indices); 
+        
+        % 2.) Triangulate new landmarks with M_prev, M_curr       
+        X_new = linearTriangulation([flipud(database_kps);ones(1,length(database_kps))],...
+            [flipud(query_kps);ones(1,length(query_kps))],...
+            K*state(end).T(1:3,:),K*[R_CW t3_CW]);
+
+        % 3.) Overwrite landmarks and database.      
+        Pdb = database_kps;
+        Pq = query_kps;
+        X = X_new;
+    end    
+    %#########################DEBUG-END: Triangulate new landmarks############
     % Renew state and add to trajectory.
     state = struct; 
     state.T = [R_CW t3_CW; ones(1,4)]; 
