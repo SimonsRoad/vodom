@@ -56,7 +56,7 @@ matched_query_keypoints = flipud(matched_query_keypoints);
 max_num_inliers_history = zeros(1, num_iterations);
 max_num_inliers = 0;
 % Replace the following with the path to your camera projection code:
-addpath('../../01_camera_projection/code');
+%addpath('../../01_camera_projection/code');
 
 % RANSAC
 for i = 1:num_iterations

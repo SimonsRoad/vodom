@@ -94,6 +94,7 @@ elseif ds == 2
     imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame)); 
     k = 1; 
     for i = (bootstrap_frames(2)+1):last_frame
+
         img = im2uint8(rgb2gray(imread([parking_path ...
             sprintf('/images/img_%05d.png',i)])));
         imgs_contop(:,:,k) = img; 
@@ -188,51 +189,53 @@ for i = 2:size(imgs_contop,3)
 %         %[R_CW, t3_CW, ~, ~] = estimateTrafoFund(Pq, Pdb, K, nan);
         %###########################################################
         % 1.) Detect and extract features in current view.
-        harris_scores_2 = harris(img1, harris_patch_size, harris_kappa);
-        keypoints_2 = selectKeypoints(...
-        harris_scores_2, num_keypoints, nonmaximum_supression_radius);
-        descriptors_2 = describeKeypoints(img1, keypoints_2, descriptor_radius);
+        descriptors = describeKeypoints(img_prev, P_prev, descriptor_radius);
 
+        harris_scores_2 = harris(img, harris_patch_size, harris_kappa);
+        keypoints_2 = selectKeypoints(...
+            harris_scores_2, num_keypoints, nonmaximum_supression_radius);
+        descriptors_2 = describeKeypoints(img, keypoints_2, descriptor_radius);
+        
+        % 2.)Directly match them to database (prev)
         matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
 
         [~, query_indices, match_indices] = find(matches);
         Pq = keypoints_2(:, query_indices);
-        Pdb = keypoints(:, match_indices);     
+        Pdb = P_prev(:, match_indices);     
+        X = X_prev(:,match_indices);
 
-[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
-
-        
-        % 2.)Directly match them to database (prev)
         
         % 3.)estimateTrafoFund without caring about pointcloud.
+        [R_CW, t3_CW, ~, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
         
         % 4.) Concatenate.
         
         %###########################################################
-        X = Xdb; %BUGFIX: Xdb, instead of X_prev  
-        fprintf('KLT number of tracked keypoints: %d\n', nnz(keep));
+        %X = Xdb; %BUGFIX: Xdb, instead of X_prev  
+        %fprintf('KLT number of tracked keypoints: %d\n', nnz(keep));
     end
     assert(isequal(size([R_CW t3_CW]), [3,4])); 
     %#########################DEBUG-START: Triangulate new landmarks############
     % If too little features kept: Triangulate new landmarks, by using the
     % just computed R_CW, t_CW.
-    if false%nnz(keep)<15
+    if size(X,2)<15
         disp("Triangulating new landmarks...")
-        % 1.) Detect and match features between img, img_prev.
-        harris_scores = harris(img_prev, harris_patch_size, harris_kappa);
+        harris_scores = harris(img0, harris_patch_size, harris_kappa);
         keypoints = selectKeypoints(...
         harris_scores, num_keypoints, nonmaximum_supression_radius);
-        descriptors = describeKeypoints(img_prev, keypoints, descriptor_radius);
-        
-        harris_scores_2 = harris(img, harris_patch_size, harris_kappa);
-        keypoints_2 = selectKeypoints(...
-        harris_scores_2, num_keypoints, nonmaximum_supression_radius);
-        descriptors_2 = describeKeypoints(img, keypoints_2, descriptor_radius);
-        
-        matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
-        [~, query_indices, match_indices] = find(matches);
-        query_kps = keypoints_2(:, query_indices);
-        database_kps = keypoints(:, match_indices); 
+descriptors = describeKeypoints(img0, keypoints, descriptor_radius);
+harris_scores_2 = harris(img1, harris_patch_size, harris_kappa);
+keypoints_2 = selectKeypoints(...
+    harris_scores_2, num_keypoints, nonmaximum_supression_radius);
+descriptors_2 = describeKeypoints(img1, keypoints_2, descriptor_radius);
+
+matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
+
+[~, query_indices, match_indices] = find(matches);
+Pq = keypoints_2(:, query_indices);
+Pdb = keypoints(:, match_indices);     
+
+[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
         
         % 2.) Triangulate new landmarks with M_prev, M_curr       
         X_new = linearTriangulation([flipud(database_kps);ones(1,length(database_kps))],...
