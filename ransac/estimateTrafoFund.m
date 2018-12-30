@@ -20,7 +20,7 @@ if isnan(t3norm)
     t3 = t3/norm(t3);   % Because we do svd, this will already have unit length!
     t3norm = norm(t3); 
 else
-    t3 = t3/t3norm; % BUG: Shouldn't we multiply it with t3norm?
+    t3 = (t3/norm(t3))*t3norm; % BUGFIX: We should multiply it with t3norm.
 end
 % Triangulate a point cloud using the final transformation (R,T)
 M1 = K * eye(3,4);

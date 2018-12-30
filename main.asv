@@ -131,17 +131,6 @@ Pdb = keypoints(:, match_indices);
 
 [R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
 
-%M = estimatePoseDLT(fliplr(Pq'), (X(1:3,:))', K);    % BUG: Due to big depth error, DLT also yields shitty results!
-%lol = M(:,4);
-%lol=lol/norm(lol)
-% NOTE: Until here, the algorithm runs correctly, the matched points are good $
-% and the triangulated landmarks (X) make sense as
-% well. 
-% Only problem is that quite often the depth error is way too big (to small
-% movement from frame2frame or too big and then only far features are
-% tracked. This in turn leads to a high depth error and this in turn to a
-% wrong DLT result.
-
 %% Plotting - Debugging. 
 % plotMatches(flipud(query_kps), flipud(database_kps), img0); 
 % plotPointCloud(X); 
@@ -170,7 +159,7 @@ for i = 2:size(imgs_contop,3)
     P_prev = state_prev.P; 
     X_prev = state_prev.X; 
     % Reinitialize feature points if below threshold.
-    if false %size(P_prev, 2) < 20%params('klt_min_num_kps')   % DEBUG: Don't use this for now.
+    if false %size(P_prev, 2) < params('klt_min_num_kps')   % DEBUG: Don't use this for now.
         disp("Reinitializing ... ");        
         fprintf('Reinitialization number of matches: %d\n', size(matches,2));
     % Otherwise apply KLT for every keypoint. 
@@ -187,65 +176,64 @@ for i = 2:size(imgs_contop,3)
 % %         R_CW = M(:,1:3);
 % %         t3_CW = M(:,4);
 %         %[R_CW, t3_CW, ~, ~] = estimateTrafoFund(Pq, Pdb, K, nan);
-        %###########################################################
-        % 1.) Detect and extract features in current view.
+        %X = Xdb; %BUGFIX: Xdb, instead of X_prev  
+        %fprintf('KLT number of tracked keypoints: %d\n', nnz(keep));
+        
+        %#######################DON'T USE KLT##############################
+        % 1.) Extract descriptors from database.
         descriptors = describeKeypoints(img_prev, P_prev, descriptor_radius);
 
+        % 2.) Detect and extract features from current view (-> Query).
         harris_scores_2 = harris(img, harris_patch_size, harris_kappa);
         keypoints_2 = selectKeypoints(...
             harris_scores_2, num_keypoints, nonmaximum_supression_radius);
         descriptors_2 = describeKeypoints(img, keypoints_2, descriptor_radius);
         
-        % 2.)Directly match them to database (prev)
+        % 3.)Directly match the db descriptors to query descriptors.
         matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
 
         [~, query_indices, match_indices] = find(matches);
         Pq = keypoints_2(:, query_indices);
         Pdb = P_prev(:, match_indices);     
         X = X_prev(:,match_indices);
-
         
-        % 3.)estimateTrafoFund without caring about pointcloud.
+        % 4.)estimateTrafoFund without caring about pointcloud.
         [R_CW, t3_CW, ~, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
         
         % 4.) Concatenate.
+        % PROBLEM:Although this works reliably, because we estimated the
+        % fundamental matrix independently from the point cloud, we don't
+        % know the relation to the scale. If we had done P3P or DLT, we had
+        % used directly the 3D(database)<->2D(query) relation and we would
+        % ha
         
         %###########################################################
-        %X = Xdb; %BUGFIX: Xdb, instead of X_prev  
-        %fprintf('KLT number of tracked keypoints: %d\n', nnz(keep));
     end
     assert(isequal(size([R_CW t3_CW]), [3,4])); 
     %#########################DEBUG-START: Triangulate new landmarks############
     % If too little features kept: Triangulate new landmarks, by using the
     % just computed R_CW, t_CW.
-    if size(X,2)<15
+    if size(X,2)<30
         disp("Triangulating new landmarks...")
-        harris_scores = harris(img0, harris_patch_size, harris_kappa);
+        harris_scores = harris(img_prev, harris_patch_size, harris_kappa);
         keypoints = selectKeypoints(...
         harris_scores, num_keypoints, nonmaximum_supression_radius);
-descriptors = describeKeypoints(img0, keypoints, descriptor_radius);
-harris_scores_2 = harris(img1, harris_patch_size, harris_kappa);
-keypoints_2 = selectKeypoints(...
-    harris_scores_2, num_keypoints, nonmaximum_supression_radius);
-descriptors_2 = describeKeypoints(img1, keypoints_2, descriptor_radius);
-
-matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
-
-[~, query_indices, match_indices] = find(matches);
-Pq = keypoints_2(:, query_indices);
-Pdb = keypoints(:, match_indices);     
-
-[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
+        descriptors = describeKeypoints(img_prev, keypoints, descriptor_radius);
         
-        % 2.) Triangulate new landmarks with M_prev, M_curr       
-        X_new = linearTriangulation([flipud(database_kps);ones(1,length(database_kps))],...
-            [flipud(query_kps);ones(1,length(query_kps))],...
-            K*state(end).T(1:3,:),K*[R_CW t3_CW]);
+        harris_scores_2 = harris(img, harris_patch_size, harris_kappa);
+        keypoints_2 = selectKeypoints(...
+            harris_scores_2, num_keypoints, nonmaximum_supression_radius);
+        descriptors_2 = describeKeypoints(img, keypoints_2, descriptor_radius);
 
-        % 3.) Overwrite landmarks and database.      
-        Pdb = database_kps;
-        Pq = query_kps;
-        X = X_new;
+        matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
+
+        [~, query_indices, match_indices] = find(matches);
+        Pq = keypoints_2(:, query_indices);
+        Pdb = keypoints(:, match_indices);     
+
+        [~, ~, X_new, ~] = estimateTrafoFund(Pq, Pdb, K, norm(t3_CW));
+        
+        X = inv(T_prev)*X_new;
     end    
     %#########################DEBUG-END: Triangulate new landmarks############
     % Renew state and add to trajectory.
