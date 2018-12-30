@@ -191,11 +191,7 @@ for i = 2:size(imgs_contop,3)
     if size(P_prev, 2) < 20%params('klt_min_num_kps')   %DEBUG: 
         disp("Reinitializing ... "); 
         % BUG2FIX: Detect and Match features between current and previous
-        % image, and then USE THE RELATIVE TRANSFORMATION T_Curr_Prev,
-        % which can be easily retrieved from the state trajectory, and
-        % triangulate a NEW pointcloud, based on what we are seeing
-        % currently and discard the pointcloud we have used so far. THEN
-        % based on this point cloud estimate your state by dlt!
+        % image, and 
 %         [P1, dc1] = features(img_prev, params, true);
 %         [P2, dc2] = features(img, params, true);
 %         matches = matching(dc1, dc2, params);

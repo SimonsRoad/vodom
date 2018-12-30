@@ -29,18 +29,38 @@ ylabel('# tracked keypoints');
 axis([n-num_hist_kps n 0 300])
 title('# prev. tracked keypoints')
 % Display trajectory. 
-subplot(2,3,[2,3,5,6]);
+%######DEBUG#########################
 positions = zeros(2,n); 
-for i = 1:n
-   trajectory(i).T
-   positions(:,i) = trajectory(i).T(1:2,4);  
-end
-plot(positions(1,:),positions(2,:)); hold on; 
-plot(trajectory(end).X(1,:),trajectory(end).X(2,:), '*'); 
-xlabel('x');
-ylabel('y');
-axis([-5.0 5.0 -5.0 5.0])
-title('Full Trajectory')
+% for i = 1:n
+%     T_CW = trajectory(i).T;
+%     positions(:,i) = inv(T_CW);  
+% end
+
+% 1.) For each T matrix, project back to W, save position and
+% orientatition.
+
+% 2.) Concatenate
+
+% 3.) Repeat.
+
+% 4.) Visualize complete trajectory and current frame.
+subplot(2,3,[2,3,5,6]);
+
+    
+%####################DEBUG END
+
+% positions = zeros(2,n); 
+% for i = 1:n
+%    trajectory(i).T;
+%    positions(:,i) = trajectory(i).T(1:2,4);  
+% end
+% plot(positions(1,:),positions(2,:)); hold on; 
+% plot(trajectory(end).X(1,:),trajectory(end).X(2,:), '*'); 
+% xlabel('x');
+% ylabel('y');
+% axis([-5.0 5.0 -5.0 5.0])
+% title('Full Trajectory')
+
 % Reset window position and size. 
 %set(gcf,'units','points','position',[100,100,600,400])
 end

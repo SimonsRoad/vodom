@@ -61,15 +61,15 @@ for i = 1:num_iterations
         best_inlier_mask = is_inlier;
     end
 end
-max_num_inliers
+
 if max_num_inliers == 0
     R_CW = [];
     t3_CW = [];
 else
-    X_3 = X(1:3,:);
-    M_C_W = dlt(P(:, best_inlier_mask>0)', X_3(:, best_inlier_mask>0)', K); %Debug
+    X_3 = X(1:3,)
+    M_C_W = dlt(P(:, best_inlier_mask>0)', X(:, best_inlier_mask>0)', K);
     R_CW = M_C_W(:, 1:3);
-    t3_CW = M_C_W(:, end);%/t3norm; %Debug
+    t3_CW = M_C_W(:, end)/t3norm;
 end
 
 end
