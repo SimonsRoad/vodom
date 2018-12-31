@@ -3,10 +3,11 @@ clear all;
 clc;
 %%
 close all;
+%img_prev = img0;
+%img = img1;
+pt = [11:20];   %5,7,8
+%%
 figure;
-img_prev = img0;
-img = img1;
-pt = [1:46];   %5,7,8
 subplot(1,2,1);
 imshow(img_prev);
 hold on;
@@ -17,9 +18,11 @@ imshow(img);
 hold on;
 plot(Pq(2, pt), Pq(1, pt), 'gx', 'Linewidth', 2);
 
-%figure;
-%plotPointCloud(X(:,pt))
-
+%%
+figure; ax = axes;
+showMatchedFeatures(img_prev,img,fliplr((Pdb(:,pt))'),fliplr((Pq(:,pt))'),'montage','Parent',ax);
+title(ax, 'Candidate point matches');
+legend(ax, 'Matched points 1','Matched points 2');
 
 %% 
 for i=1:100
@@ -54,7 +57,7 @@ for i=1:50
 end
 
 close all;
-scatter(position(:,1),0*position(:,3))
+plot(position(:,1),position(:,3))
 hold on;
 xlabel('X');
 ylabel('Z')

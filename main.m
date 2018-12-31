@@ -130,6 +130,11 @@ Pdb = keypoints(:, match_indices);
 t_norm_base = 0.1294;%ground_truth(bootstrap_frames(2)) - ground_truth(bootstrap_frames(1));
 [R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pdb,Pq, K, t_norm_base);  % BUGFIX: Pdb is P1 and Pq is P2 in this function!
 
+% figure; ax = axes;
+% showMatchedFeatures(img0,img1,fliplr(Pdb'),fliplr(Pq'),'montage','Parent',ax);
+% title(ax, 'Candidate point matches');
+% legend(ax, 'Matched points 1','Matched points 2');
+
 %% Plotting - Debugging. 
 % plotMatches(flipud(query_kps), flipud(database_kps), img0); 
 % plotPointCloud(X); 
@@ -175,8 +180,12 @@ for i = 2:size(imgs_contop,3)
             X = [X,X_prev(:,l)];
         end
     end
+%     figure; ax = axes;
+% showMatchedFeatures(img_prev,img,fliplr(Pdb'),fliplr(Pq'),'montage','Parent',ax);
+% title(ax, 'Candidate point matches');
+% legend(ax, 'Matched points 1','Matched points 2');
+
     % !!!NOTE: KLT WORKS!      
-        
     %4.a) Try MATLAB's P3P
     imagePoints = fliplr(Pq');
     worldPoints = X(1:3,:);
@@ -201,7 +210,9 @@ for i = 2:size(imgs_contop,3)
     assert(isequal(size([R_CW t3_CW]), [3,4])); 
     
     % Triangulate new landmarks, AFTER motion has been estimated.
-    if size(X,2)<45
+    centroid_x = mean(Pq(2,:));
+    centroid_y = mean(Pq(1,:));
+    if size(X,2)<45%or(abs(centroid_x-320)>32,abs(centroid_y-240)>24)%
         disp("Triangulating new landmarks...")
         harris_scores = harris(img_prev, harris_patch_size, harris_kappa);
         keypoints = selectKeypoints(...
@@ -240,6 +251,6 @@ for i = 2:size(imgs_contop,3)
     trajectory = [trajectory; state];
     
     % Plotting. 
-    plotOverall(img, trajectory); 
+    plotOverall(img,img_prev, trajectory); 
     pause(0.01);
 end
