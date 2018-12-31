@@ -93,7 +93,7 @@ elseif ds == 2
     % Load continous operation images. 
     imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame)); 
     k = 1; 
-    for i = (bootstrap_frames(2)+1):3:last_frame
+    for i = (bootstrap_frames(2)+1):3:last_frame    % HACK! More distance between frames
 
         img = im2uint8(rgb2gray(imread([parking_path ...
             sprintf('/images/img_%05d.png',i)])));
@@ -136,7 +136,7 @@ t_norm_base = ground_truth(bootstrap_frames(2)) - ground_truth(bootstrap_frames(
 
 %% Assign initial state. 
 state = struct; 
-state.T = [R_CW t3_CW; ones(1,4)]; 
+state.T = [R_CW t3_CW; [0,0,0,1]];  %BUGFIX, homogenous coordinate transform 
 state.P = Pq;
 state.Pdb = Pdb; 
 state.X = X; 
@@ -167,65 +167,64 @@ for i = 2:size(imgs_contop,3)
     else
         disp("KL Tracking ..."); 
         %#######################KLT APPROACH###############################
-        %[P, keep] = trackKLT(img_prev, img, (flipud(P_prev))', params); % BUG: Feeding [y x] instead of [x y]
+%         [P, keep] = trackKLT(img_prev, img, (flipud(P_prev))', params); % BUG: Feeding [y x] instead of [x y]
 %         [W, p_hist] = trackKLT(I_R, I, x_T, r_T, num_iters)
-%         % Estimate transformation from previous to current frame. 
+%         Estimate transformation from previous to current frame. 
 %         Pq = P(:,keep); 
 %         Pdb = P_prev(:,keep); 
 %         Xdb = X_prev(:,keep); 
-%         %[R_CW, t3_CW, ~] = estimateTrafoP3P(Pq, Xdb, K, t3norm, params); % BUG: Something's wrong! Output from p3p is nowhere close to a rotation matrix!
-% %         M = dlt(fliplr(Pq'), (Xdb(1:3,:))', K); % Because P3P is failing, just do DLT with the tracked keypoints and the landmark pointcloud.
-% %         R_CW = M(:,1:3);
-% %         t3_CW = M(:,4);
-%         %[R_CW, t3_CW, ~, ~] = estimateTrafoFund(Pq, Pdb, K, nan);
-        %X = Xdb; %BUGFIX: Xdb, instead of X_prev  
-        %fprintf('KLT number of tracked keypoints: %d\n', nnz(keep));
+%         [R_CW, t3_CW, ~] = estimateTrafoP3P(Pq, Xdb, K, t3norm, params); % BUG: Something's wrong! Output from p3p is nowhere close to a rotation matrix!
+%         M = dlt(fliplr(Pq'), (Xdb(1:3,:))', K); % Because P3P is failing, just do DLT with the tracked keypoints and the landmark pointcloud.
+%         R_CW = M(:,1:3);
+%         t3_CW = M(:,4);
+%         [R_CW, t3_CW, ~, ~] = estimateTrafoFund(Pq, Pdb, K, nan);
+%         X = Xdb; %BUGFIX: Xdb, instead of X_prev  
+%         fprintf('KLT number of tracked keypoints: %d\n', nnz(keep));
         
         pointTracker = vision.PointTracker('MaxBidirectionalError',inf);
         initialize(pointTracker, fliplr(P_prev'), img_prev);
-        %[points,point_validity] = step(pointTracker, I);
         [points,validity] = pointTracker(img);
         Pq = [];
         Pdb = [];
+        X = [];
         for l=1:size(validity,1)
            if(validity(l)==1)
-               Pq = [Pq,(fliplr(points(l,:)))']
-               Pdb = [Pdb,P_prev(:,l)]
+               Pq = [Pq,(fliplr(points(l,:)))'];
+               Pdb = [Pdb,P_prev(:,l)];
+               X = [X,X_prev(:,l)];
            end
         end
-        
+        % !!!NOTE: KLT WORKS!
         %#######################KLT APPROACH###############################
         
         %#######################P3P APPROACH###############################
 %         [R_C_W, t_C_W, query_keypoints, all_matches, best_inlier_mask, ...
 %             max_num_inliers_history] = ransacLocalization(...
 %             img, img_prev, P_prev, X_prev(1:3,:), K);
-        % !!!NOTE: P3P isn't working properly! 
+%         %!!!NOTE: P3P isn't working properly! 
         %#######################P3P APPROACH###############################
         
         %#######################FUNDAMENTAL MATRIX APPROACH################
-        % 1.) Extract descriptors from database.
-        descriptors = describeKeypoints(img_prev, P_prev, descriptor_radius);
+%         % 1.) Extract descriptors from database.
+%         descriptors = describeKeypoints(img_prev, P_prev, descriptor_radius);
+% 
+%         % 2.) Detect and extract features from current view (-> Query).
+%         harris_scores_2 = harris(img, harris_patch_size, harris_kappa);
+%         keypoints_2 = selectKeypoints(...
+%             harris_scores_2, num_keypoints, nonmaximum_supression_radius);
+%         descriptors_2 = describeKeypoints(img, keypoints_2, descriptor_radius);
+%         
+%         % 3.)Directly match the db descriptors to query descriptors.
+%         matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
+%         [~, query_indices, match_indices] = find(matches);
+%         Pq = keypoints_2(:, query_indices);
+%         Pdb = P_prev(:, match_indices);     
+%         X = X_prev(:,match_indices);
+%        
+%         % 4.)estimateTrafoFund without caring about pointcloud.
+%         %[R_CW, t3_CW, ~, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
+        %#######################FUNDAMENTAL MATRIX APPROACH################
 
-        % 2.) Detect and extract features from current view (-> Query).
-        harris_scores_2 = harris(img, harris_patch_size, harris_kappa);
-        keypoints_2 = selectKeypoints(...
-            harris_scores_2, num_keypoints, nonmaximum_supression_radius);
-        descriptors_2 = describeKeypoints(img, keypoints_2, descriptor_radius);
-        
-        % 3.)Directly match the db descriptors to query descriptors.
-        matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
-
-        [~, query_indices, match_indices] = find(matches);
-        Pq = keypoints_2(:, query_indices);
-        Pdb = P_prev(:, match_indices);     
-        X = X_prev(:,match_indices);
-        
-        % NOTE: Try to use KLT. Independent feature tracking in contop is
-        % pretty shitty with many outlier!
-        
-        % 4.)estimateTrafoFund without caring about pointcloud.
-        %[R_CW, t3_CW, ~, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
         
         %4.a) Try MATLAB's P3P
         imagePoints = fliplr(Pq');
@@ -234,18 +233,21 @@ for i = 2:size(imgs_contop,3)
         intrinsics = cameraIntrinsics([K(1,1) K(2,2)],[K(1,3) K(2,3)],size(img0));
         K_intrinsics = [331.37,0,0;...
             0,369.5680,0;...
-            320,240,0];
+            320,240,1];
         cameraParams = cameraParameters('IntrinsicMatrix', K_intrinsics);
         
-        [worldOrientation,worldLocation] = estimateWorldCameraPose(imagePoints,worldPoints,cameraParams);
-        % 4.) Concatenate.
-        % !!!PROBLEM: Although this works reliably, because we estimated the
-        % fundamental matrix independently from the point cloud, we don't
-        % know the relation to the scale. If we had done P3P or DLT, we had
-        % used directly the 3D(database)<->2D(query) relation and we would
-        % have gotten the scale automatically. But now, we don't have the
-        % scale!
-        %#######################FUNDAMENTAL MATRIX APPROACH################
+        [worldOrientation,worldLocation,status] = estimateWorldCameraPose(imagePoints,worldPoints,cameraParams,...
+            'MaxReprojectionError',10);
+        
+        R_WC = worldOrientation;
+        t_WC = worldLocation';
+        T_WC = [R_WC,t_WC];
+        T_WC = [T_WC;[0,0,0,1]]
+        T_CW = inv(T_WC);
+        R_CW = T_CW(1:3,1:3);
+        t3_CW = T_CW(1:3,4);
+        
+        
     end
     assert(isequal(size([R_CW t3_CW]), [3,4])); 
     
@@ -275,7 +277,7 @@ for i = 2:size(imgs_contop,3)
     
     % Renew state and add to trajectory.
     state = struct; 
-    state.T = [R_CW t3_CW; ones(1,4)]; 
+    state.T = [R_CW t3_CW; [0,0,0,1]];  %BUGFIX 
     state.P = Pq; 
     state.Pdb = Pdb; 
     state.X = X; 

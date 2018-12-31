@@ -6,7 +6,7 @@ close all;
 figure;
 %img_prev = img0;
 %img = img1;
-pt = [1:41];   %5,7,8
+pt = [1:4];   %5,7,8
 subplot(1,2,1);
 imshow(img_prev);
 hold on;
@@ -18,7 +18,7 @@ hold on;
 plot(Pq(2, pt), Pq(1, pt), 'gx', 'Linewidth', 2);
 
 %figure;
-%plotPointCloud(X(:,pt))
+plotPointCloud(X(:,pt))
 
 
 %% 
@@ -46,7 +46,7 @@ end
 
 %%
 position = [];
-for i=2:112
+for i=1:10
     T_CW = trajectory(i).T;
     T_WC = inv(T_CW);
     pos = T_WC*[0;0;0;1];
