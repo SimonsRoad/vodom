@@ -1,4 +1,4 @@
-function plotOverall(img, img_prev, trajectory)
+function plotOverall(img, trajectory)
 clf('reset');
 n = size(trajectory, 1); 
 if n < 2
@@ -11,7 +11,7 @@ P_prev = trajectory(end).Pdb;
 P_new  = trajectory(end).P; 
 plotMovingKPs(P_prev, P_new, img); 
 hold off; 
-title('Current Image (new = green, tracked = red)');
+title('Current Image (red=tracked)');
 % Display number of tracked keypoints over last frames.
 subplot(2,3,4);
 num_keypoints = zeros(1,n); 
@@ -40,7 +40,7 @@ for i=1:n
     positions = [positions;(pos(1:3))'];
 end
 
-plot(positions(:,1),positions(:,3)); 
+plot(positions(:,1),positions(:,3)); % NOTE: We are interested in X-Z (topview) and not in X-Y!
 hold on; 
 plot((trajectory(end).X(1,:))',(trajectory(end).X(3,:))', '*'); 
 xlabel('X_W');
