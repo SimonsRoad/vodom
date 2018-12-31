@@ -46,7 +46,7 @@ end
 
 %%
 position = [];
-for i=1:26
+for i=1:23
     T_CW = trajectory(i).T;
     T_WC = inv(T_CW);
     pos = T_WC*[0;0;0;1];
