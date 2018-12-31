@@ -18,7 +18,7 @@ parameters('ransac_min_inlier') = 30;   % min. #acceptable ransac inlier.
 parameters('ransac_num_samples') = 3;   % sample size for ransac.
 
 if ds == 0
-    parameters('bootstrap_frames') = [1 2];     
+    parameters('bootstrap_frames') = [390 392];%[1 3];     
 elseif ds == 1
     parameters('bootstrap_frames') = [1 2]; 
 elseif ds == 2

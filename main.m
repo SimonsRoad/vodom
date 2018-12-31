@@ -30,7 +30,7 @@ if ds == 0
     kitti_path = 'datasets/kitti/'; 
     ground_truth = load([kitti_path '/poses/00.txt']);
     ground_truth = ground_truth(:, [end-8 end]);
-    last_frame = 4540;
+    last_frame = 454;%0;    % DON'T KILL MY DUAL CORE PLS;)
     K = [7.188560000000e+02 0 6.071928000000e+02
         0 7.188560000000e+02 1.852157000000e+02
         0 0 1];
@@ -42,13 +42,13 @@ if ds == 0
         sprintf('%06d.png',bootstrap_frames(2))]);
     imgs_bootstrap = [img0; img1]; 
     % Load continous operation images. 
-    imgs_contop = zeros(size(img0,1), size(img0,2), last_frame);
+    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame));
     k = 1; 
     for i = (bootstrap_frames(2)+1):last_frame
         img = imread([kitti_path '/00/image_0/' sprintf('%06d.png',i)]);
         imgs_contop(:,:,k) = img; 
         k = k + 1; 
-    end
+    end     %BUG: WHITE IMAGES!
 elseif ds == 1
     malaga_path = 'datasets/malaga/'; 
     images = dir([malaga_path ...
@@ -93,7 +93,7 @@ elseif ds == 2
     % Load continous operation images. 
     imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame)); 
     k = 1; 
-    for i = (bootstrap_frames(2)+1):3:last_frame    % HACK! More distance between frames
+    for i = (bootstrap_frames(2)+1):last_frame    % HACK! More distance between frames
 
         img = im2uint8(rgb2gray(imread([parking_path ...
             sprintf('/images/img_%05d.png',i)])));
@@ -127,7 +127,7 @@ matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
 [~, query_indices, match_indices] = find(matches);
 Pq = keypoints_2(:, query_indices);
 Pdb = keypoints(:, match_indices);     
-t_norm_base = ground_truth(bootstrap_frames(2)) - ground_truth(bootstrap_frames(1));
+t_norm_base = 0.1294;%ground_truth(bootstrap_frames(2)) - ground_truth(bootstrap_frames(1));
 [R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pdb,Pq, K, t_norm_base);  % BUGFIX: Pdb is P1 and Pq is P2 in this function!
 
 %% Plotting - Debugging. 
@@ -160,98 +160,48 @@ for i = 2:size(imgs_contop,3)
     % Reinitialize feature points if below threshold
     % !!!NOTE: DON'T DO IT HERE! FIRST WE NEED A MOTION ESTIMATE BEFORE WE CAN
     % EVEN TRIANGULATE NEW LANDMARKS!!!
-    if false %size(P_prev, 2) < params('klt_min_num_kps')  
-        disp("Reinitializing ... ");        
-        fprintf('Reinitialization number of matches: %d\n', size(matches,2));
-    % Otherwise apply KLT for every keypoint. 
-    else
-        disp("KL Tracking ..."); 
-        %#######################KLT APPROACH###############################
-%         [P, keep] = trackKLT(img_prev, img, (flipud(P_prev))', params); % BUG: Feeding [y x] instead of [x y]
-%         [W, p_hist] = trackKLT(I_R, I, x_T, r_T, num_iters)
-%         Estimate transformation from previous to current frame. 
-%         Pq = P(:,keep); 
-%         Pdb = P_prev(:,keep); 
-%         Xdb = X_prev(:,keep); 
-%         [R_CW, t3_CW, ~] = estimateTrafoP3P(Pq, Xdb, K, t3norm, params); % BUG: Something's wrong! Output from p3p is nowhere close to a rotation matrix!
-%         M = dlt(fliplr(Pq'), (Xdb(1:3,:))', K); % Because P3P is failing, just do DLT with the tracked keypoints and the landmark pointcloud.
-%         R_CW = M(:,1:3);
-%         t3_CW = M(:,4);
-%         [R_CW, t3_CW, ~, ~] = estimateTrafoFund(Pq, Pdb, K, nan);
-%         X = Xdb; %BUGFIX: Xdb, instead of X_prev  
-%         fprintf('KLT number of tracked keypoints: %d\n', nnz(keep));
+    disp("KL Tracking ..."); 
         
-        pointTracker = vision.PointTracker('MaxBidirectionalError',inf);
-        initialize(pointTracker, fliplr(P_prev'), img_prev);
-        [points,validity] = pointTracker(img);
-        Pq = [];
-        Pdb = [];
-        X = [];
-        for l=1:size(validity,1)
-           if(validity(l)==1)
-               Pq = [Pq,(fliplr(points(l,:)))'];
-               Pdb = [Pdb,P_prev(:,l)];
-               X = [X,X_prev(:,l)];
-           end
+    pointTracker = vision.PointTracker('MaxBidirectionalError',inf);
+    initialize(pointTracker, fliplr(P_prev'), img_prev);
+    [points,validity] = pointTracker(img);
+    Pq = [];
+    Pdb = [];
+    X = [];
+    for l=1:size(validity,1)
+        if(validity(l)==1)
+            Pq = [Pq,(fliplr(points(l,:)))'];
+            Pdb = [Pdb,P_prev(:,l)];
+            X = [X,X_prev(:,l)];
         end
-        % !!!NOTE: KLT WORKS!
-        %#######################KLT APPROACH###############################
-        
-        %#######################P3P APPROACH###############################
-%         [R_C_W, t_C_W, query_keypoints, all_matches, best_inlier_mask, ...
-%             max_num_inliers_history] = ransacLocalization(...
-%             img, img_prev, P_prev, X_prev(1:3,:), K);
-%         %!!!NOTE: P3P isn't working properly! 
-        %#######################P3P APPROACH###############################
-        
-        %#######################FUNDAMENTAL MATRIX APPROACH################
-%         % 1.) Extract descriptors from database.
-%         descriptors = describeKeypoints(img_prev, P_prev, descriptor_radius);
-% 
-%         % 2.) Detect and extract features from current view (-> Query).
-%         harris_scores_2 = harris(img, harris_patch_size, harris_kappa);
-%         keypoints_2 = selectKeypoints(...
-%             harris_scores_2, num_keypoints, nonmaximum_supression_radius);
-%         descriptors_2 = describeKeypoints(img, keypoints_2, descriptor_radius);
-%         
-%         % 3.)Directly match the db descriptors to query descriptors.
-%         matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
-%         [~, query_indices, match_indices] = find(matches);
-%         Pq = keypoints_2(:, query_indices);
-%         Pdb = P_prev(:, match_indices);     
-%         X = X_prev(:,match_indices);
-%        
-%         % 4.)estimateTrafoFund without caring about pointcloud.
-%         %[R_CW, t3_CW, ~, t3norm] = estimateTrafoFund(Pq, Pdb, K, nan);
-        %#######################FUNDAMENTAL MATRIX APPROACH################
-
-        
-        %4.a) Try MATLAB's P3P
-        imagePoints = fliplr(Pq');
-        worldPoints = X(1:3,:);
-        worldPoints = worldPoints';
-        intrinsics = cameraIntrinsics([K(1,1) K(2,2)],[K(1,3) K(2,3)],size(img0));
-        K_intrinsics = [331.37,0,0;...
-            0,369.5680,0;...
-            320,240,1];
-        cameraParams = cameraParameters('IntrinsicMatrix', K_intrinsics);
-        
-        [worldOrientation,worldLocation,status] = estimateWorldCameraPose(imagePoints,worldPoints,cameraParams,...
-            'MaxReprojectionError',10);
-        % Convert.
-        R_WC = worldOrientation;
-        t_WC = worldLocation';
-        T_WC = [R_WC,t_WC];
-        T_WC = [T_WC;[0,0,0,1]];
-        T_CW = inv(T_WC);
-        R_CW = T_CW(1:3,1:3);
-        t3_CW = T_CW(1:3,4);
-        
     end
+    % !!!NOTE: KLT WORKS!      
+        
+    %4.a) Try MATLAB's P3P
+    imagePoints = fliplr(Pq');
+    worldPoints = X(1:3,:);
+    worldPoints = worldPoints';
+    intrinsics = cameraIntrinsics([K(1,1) K(2,2)],[K(1,3) K(2,3)],size(img0));
+    K_intrinsics = [K(1,1),0,0;...
+        0,K(2,2),0;...
+        K(1,3),K(2,3),1];
+    cameraParams = cameraParameters('IntrinsicMatrix', K_intrinsics);
+        
+    [worldOrientation,worldLocation,status] = estimateWorldCameraPose(imagePoints,worldPoints,cameraParams,...
+        'MaxReprojectionError',10);
+    % Convert.
+    R_WC = worldOrientation;
+    t_WC = worldLocation';
+    T_WC = [R_WC,t_WC];
+    T_WC = [T_WC;[0,0,0,1]];
+    T_CW = inv(T_WC);
+    R_CW = T_CW(1:3,1:3);
+    t3_CW = T_CW(1:3,4);
+        
     assert(isequal(size([R_CW t3_CW]), [3,4])); 
     
     % Triangulate new landmarks, AFTER motion has been estimated.
-    if size(X,2)<30
+    if size(X,2)<45
         disp("Triangulating new landmarks...")
         harris_scores = harris(img_prev, harris_patch_size, harris_kappa);
         keypoints = selectKeypoints(...
