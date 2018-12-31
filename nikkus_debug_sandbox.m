@@ -4,9 +4,9 @@ clc;
 %%
 close all;
 figure;
-%img_prev = img0;
-%img = img1;
-pt = [1:4];   %5,7,8
+img_prev = img0;
+img = img1;
+pt = [5,11];   %5,7,8
 subplot(1,2,1);
 imshow(img_prev);
 hold on;
@@ -46,7 +46,7 @@ end
 
 %%
 position = [];
-for i=1:10
+for i=1:26
     T_CW = trajectory(i).T;
     T_WC = inv(T_CW);
     pos = T_WC*[0;0;0;1];
