@@ -16,7 +16,7 @@ title('Current Image (red=tracked)');
 % PLOT: Tracked Keypoints
 subplot(2,3,4);
 num_keypoints = zeros(1,n); 
-num_hist_kps = 10; 
+num_hist_kps = 50; 
 for i = 1:n
     num_keypoints(i) = size(trajectory(i).P, 2); 
 end
@@ -27,7 +27,7 @@ else
 end
 xlabel('Frame index');
 ylabel('# tracked keypoints');
-axis([n-num_hist_kps n 0 200])
+axis([n-num_hist_kps n 0 400])
 title('# prev. tracked keypoints')
 
 % PLOT: Trajectory, Camera and landmarks 
@@ -41,11 +41,14 @@ for i=1:n
     positions = [positions;(pos(1:3))'];
 end
 
-plot(positions(:,1),positions(:,3)); % NOTE: We are interested in X-Z (topview).
+
+% NOTE: We are interested in X-Z (topview).
+coord1 = 1; coord2 = 3; 
+plot(positions(:,coord1),positions(:,coord2)); 
 hold on; 
-plot((trajectory(end).Xin(1,:))',(trajectory(end).Xin(3,:))', '*'); 
-xlabel('X_W');
-ylabel('Z_W');
+plot((trajectory(end).Xin(coord1,:))',(trajectory(end).Xin(coord2,:))','*'); 
+xlabel('X^W_1');
+ylabel('X^W_2');
 axis equal;
 
 % NEW (3D plot with trajectory, landmarks and camera).

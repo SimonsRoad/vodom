@@ -11,7 +11,7 @@ disp("vodom - Visual Odometry Pipeline")
 disp("Nikhilesh Alatur, Simon Schaefer")
 disp("################################")
 %% Choose and load dataset. 
-ds = 2; % 0: KITTI, 1: Malaga, 2: parking
+ds = 0; % 0: KITTI, 1: Malaga, 2: parking
 
 % Parameters. 
 params = loadParameters(ds); 
@@ -25,7 +25,7 @@ if ds == 0
     kitti_path = 'datasets/kitti/'; 
     ground_truth = load([kitti_path '/poses/00.txt']);
     ground_truth = ground_truth(:, [end-8 end]);
-    last_frame = 454;%0;    % DON'T KILL MY DUAL CORE PLS;)
+    last_frame = 454;%0;   
     K = [7.188560000000e+02 0 6.071928000000e+02
         0 7.188560000000e+02 1.852157000000e+02
         0 0 1];
@@ -37,7 +37,8 @@ if ds == 0
         sprintf('%06d.png',bootstrap_frames(2))]);
     imgs_bootstrap = [img0; img1]; 
     % Load continous operation images. 
-    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame)); 
+    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), ...
+                        last_frame-bootstrap_frames(2))); 
     k = 1; 
     for i = (bootstrap_frames(2)+1):last_frame
         img = imread([kitti_path '/00/image_0/' sprintf('%06d.png',i)]);
@@ -63,7 +64,8 @@ elseif ds == 1
         left_images(bootstrap_frames(2)).name]));
     imgs_bootstrap = [img0; img1]; 
     % Load continous operation images. 
-    imgs_contop = zeros(size(img0,1), size(img0,2), last_frame); 
+    imgs_contop = zeros(size(img0,1), size(img0,2), ...
+                        last_frame-bootstrap_frames(2)); 
     k = 1; 
     for i = (bootstrap_frames(2)+1):last_frame
         img = rgb2gray(imread([malaga_path ...
@@ -74,7 +76,7 @@ elseif ds == 1
     end
 elseif ds == 2
     parking_path = 'datasets/parking/'; 
-    last_frame = 598;
+    last_frame = 549;
     K = load([parking_path '/K.txt']);
     ground_truth = load([parking_path '/poses.txt']);
     ground_truth = ground_truth(:, [end-8 end]);
@@ -86,10 +88,10 @@ elseif ds == 2
         sprintf('/images/img_%05d.png',bootstrap_frames(2))]));
     imgs_bootstrap = [img0; img1]; 
     % Load continous operation images. 
-    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame)); 
+    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), ...
+                        last_frame-bootstrap_frames(2))); 
     k = 1; 
-    for i = (bootstrap_frames(2)+1):last_frame    % HACK: Use only every 3rd frame -> More distance between frames -> Smaller depth error.
-
+    for i = (bootstrap_frames(2)+1):last_frame    
         img = im2uint8(rgb2gray(imread([parking_path ...
             sprintf('/images/img_%05d.png',i)])));
         imgs_contop(:,:,k) = img; 
@@ -122,7 +124,8 @@ desc = describeKeypoints(img1, kp, r_desc);
 matches = matchDescriptors(desc, desc_prev, lambda);
 [~, query_indices, match_indices] = find(matches);
 Pq = kp(:, query_indices);
-Pdb = kp_prev(:, match_indices);     
+Pdb = kp_prev(:, match_indices); 
+fprintf('... number of matches: %d\n', size(Pq,2)); 
 
 % Use the ground truth to set the scale of this bootstrap transformation.
 t_norm_base = 0.1294;   % ToDo: Take this from ground truth.
@@ -141,7 +144,7 @@ state.T = [R_CW t3_CW; [0,0,0,1]];
 state.P = Pq;
 state.Pdb = Pdb; 
 state.X = X; 
-state.Xin = X; 
+state.Xin = X;  
 trajectory = [state];  %#ok<NBRAK>
 
 disp("Initial transformation: "); 
@@ -171,16 +174,16 @@ for i = 2:size(imgs_contop,3)
     X = [];
     for l=1:size(validity,1)
         if(validity(l)==1)
-            Pq = [Pq,(fliplr(points(l,:)))'];
-            Pdb = [Pdb,P_prev(:,l)];
-            X = [X,X_prev(:,l)];
+            Pq = [Pq,(fliplr(points(l,:)))']; %#ok<AGROW>
+            Pdb = [Pdb,P_prev(:,l)]; %#ok<AGROW>
+            X = [X,X_prev(:,l)]; %#ok<AGROW>
         end
     end
     fprintf('KLT number of tracked keypoints: %d\n', nnz(validity));
     
     % Either use P3P to track points or directly triangulate new landmarks.
     do_triangulate = false; 
-    if nnz(validity) >= 4
+    if nnz(validity) >= params('min_num_p3p')
         % Find new camera pose with MATLAB's P3P function.
         image_points = fliplr(Pq');
         world_points = X(1:3,:)';
@@ -188,7 +191,8 @@ for i = 2:size(imgs_contop,3)
         camera_params = cameraParameters('IntrinsicMatrix', K_matlab);
         [world_orientation,world_location,status] = estimateWorldCameraPose(...
             image_points, world_points, camera_params,...
-            'MaxReprojectionError',10, 'MaxNumTrials',2000);
+            'MaxReprojectionError', params('max_reproj_error_p3p'), ...
+            'MaxNumTrials', params('num_iter_p3p'));
         % Convert T_WC->T_CW.
         R_WC = world_orientation;
         t_WC = world_location';
@@ -231,8 +235,8 @@ for i = 2:size(imgs_contop,3)
         do_research = true; 
         shift  = min(params('triang_max_baseline'), size(trajectory,1)-1); 
         while do_research
-            img_db = imgs_contop(:,:,i-shift); 
-            T_db   = trajectory(end-shift).T; 
+            img_db  = imgs_contop(:,:,i-shift); 
+            T_CW_db = trajectory(end-shift).T; 
             % Detect and extract new features in previous frames.
             scores_prev = harris(img_db, patch_size, kappa);
             kp_prev = selectKeypoints(scores_prev, num_kp_cont, r_sup); 
@@ -244,11 +248,11 @@ for i = 2:size(imgs_contop,3)
             % Match them!
             matches = matchDescriptors(desc, desc_prev, lambda);
             [~, query_indices, match_indices] = find(matches);
-            Pq = kp(:, query_indices);
-            Pdb = kp_prev(:, match_indices);   
-            fprintf('... number of matches: %d\n', size(Pq,2)); 
+            Pq_new = kp(:, query_indices);
+            Pdb_new = kp_prev(:, match_indices);   
+            fprintf('... number of matches: %d\n', size(Pq_new,2)); 
             % Check whether matches are sufficiently many. 
-            if size(Pq,2) > params('min_num_landmarks')||shift == 1
+            if size(Pq_new,2) > params('min_num_landmarks')||shift == 1
                 do_research = false; 
             else
                 shift = shift - 1; 
@@ -257,29 +261,39 @@ for i = 2:size(imgs_contop,3)
         % Find the norm of the transform from the last to the current
         % frame. Required for scaling the translation vector 
         % from estimateTrafoFund.
-        T_CcCp = [R_CW t3_CW; [0,0,0,1]]*inv(T_db);
+        T_CcCp = [R_CW t3_CW; [0,0,0,1]]*inv(T_CW_db);
         t3_CcCp = T_CcCp(1:3,4);
      
         % Triangulate new landmarks.
-        [~, ~, X_new, ~] = estimateTrafoFund(Pdb, Pq, K, norm(t3_CcCp));
+        [~,~,X_new,~] = estimateTrafoFund(Pdb_new, Pq_new, K, norm(t3_CcCp));
         % OBSERVATION: We have a problem here that there is noise in Z and Y
         % direction. Without it, the difference was exactly 0.5, as GT
         % suggests, but with GT the distance was 1.36. This is okay because
         % we triangulated a completely new pointcloud. But this will
         % inevitably lead to drift and errors in the long term.
+                
+        % Transform old keypoints in current camera frame and append new 
+        % and old landmarks. 
+        X_old = T_CW_db*X;        
+        X_cand = [X_old X_new];
+        Pq_cand = [Pq Pq_new]; 
+        Pdb_cand = [Pdb Pdb_new]; 
         
         % Discard landmarks that are very far away (as they most probably
-        % are created by triangulation depth errors). 
-        status = 0<X_new(3,:) & X_new(3,:)<params('landmarks_max_dis'); 
+        % are created by triangulation depth errors), behind the camera 
+        % in an unreliable angle. 
+        status_close   = X_cand(3,:)<params('landmarks_max_dis'); 
+        status_infront = X_cand(3,:)>0; 
+        status = status_close & status_infront; 
         fprintf('... number of distance landmarks: %d\n', nnz(~status));
         
         % Use the T_CW of the previous frame to bring back the 
         % pointcloud to the world frame. 
-        X = inv(T_db)*X_new(:, status);  
-        Pq = Pq(:, status); 
-        Pdb = Pdb(:, status); 
+        X = inv(T_CW_db)*X_cand(:, status);  
+        Pq = Pq_cand(:, status); 
+        Pdb = Pdb_cand(:, status); 
         status = true(size(X,2),1); 
-        fprintf('... number of new landmarks: %d\n', size(X_new,2));
+        fprintf('... number of new landmarks: %d\n', size(X,2));
     end
         
     % Renew state and add to trajectory.
@@ -294,7 +308,6 @@ for i = 2:size(imgs_contop,3)
             state.T(1,4), state.T(2,4), state.T(3,4));
     % Plotting. 
     plotOverall(img, trajectory);
-    % plotMatches(flipud(Pq), flipud(Pdb), img); 
-    
-    pause(0.5);
+    %plotMatches(flipud(Pq), flipud(Pdb), img); 
+    pause(0.01);
 end
