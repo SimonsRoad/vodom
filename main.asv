@@ -4,12 +4,13 @@
 %##########################################################################
 clear all; close all; clc;  %#ok<CLALL>
 
-addpath('features/'); 
-addpath('klt/'); 
-addpath('plotting/'); 
-addpath('ransac/'); 
+addpath(genpath('functions/'));
 
-addpath('debug_new/'); %Debug: Functions 1:1 from exercise solution.
+%addpath('plotting/'); 
+%addpath('features/'); 
+%addpath('klt/'); 
+%addpath('ransac/'); 
+%addpath('debug_new/'); %Debug: Functions 1:1 from exercise solution.
 
 disp("################################")
 disp("vodom - Visual Odometry Pipeline")
@@ -42,13 +43,13 @@ if ds == 0
         sprintf('%06d.png',bootstrap_frames(2))]);
     imgs_bootstrap = [img0; img1]; 
     % Load continous operation images. 
-    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame));
+    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame)); % BUGFIX: Convert to uint8, else can't be processed as image.
     k = 1; 
     for i = (bootstrap_frames(2)+1):last_frame
         img = imread([kitti_path '/00/image_0/' sprintf('%06d.png',i)]);
         imgs_contop(:,:,k) = img; 
         k = k + 1; 
-    end     %BUG: WHITE IMAGES!
+    end     
 elseif ds == 1
     malaga_path = 'datasets/malaga/'; 
     images = dir([malaga_path ...
@@ -93,7 +94,7 @@ elseif ds == 2
     % Load continous operation images. 
     imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame)); 
     k = 1; 
-    for i = (bootstrap_frames(2)+1):last_frame    % HACK! More distance between frames
+    for i = (bootstrap_frames(2)+1):last_frame    % HACK: Use only every 3rd frame -> More distance between frames -> Smaller depth error.
 
         img = im2uint8(rgb2gray(imread([parking_path ...
             sprintf('/images/img_%05d.png',i)])));
@@ -106,6 +107,7 @@ end
 
 %% Bootstrap Initialization.
 disp("Starting bootstrapping initialization ..."); 
+% ToDo: Move these parameters to loadParams(9
 harris_patch_size = 9;
 harris_kappa = 0.08;
 num_keypoints = 200;
@@ -113,27 +115,29 @@ nonmaximum_supression_radius = 8;
 descriptor_radius = 9;
 match_lambda = 4;
 
+% Detect and extract features in img0.
 harris_scores = harris(img0, harris_patch_size, harris_kappa);
 keypoints = selectKeypoints(...
     harris_scores, num_keypoints, nonmaximum_supression_radius);
 descriptors = describeKeypoints(img0, keypoints, descriptor_radius);
+
+% Detect and extract features in img1.
 harris_scores_2 = harris(img1, harris_patch_size, harris_kappa);
 keypoints_2 = selectKeypoints(...
     harris_scores_2, num_keypoints, nonmaximum_supression_radius);
 descriptors_2 = describeKeypoints(img1, keypoints_2, descriptor_radius);
 
+% Match them!
 matches = matchDescriptors(descriptors_2, descriptors, match_lambda);
-
 [~, query_indices, match_indices] = find(matches);
 Pq = keypoints_2(:, query_indices);
 Pdb = keypoints(:, match_indices);     
-t_norm_base = 0.1294;%ground_truth(bootstrap_frames(2)) - ground_truth(bootstrap_frames(1));
-[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pdb,Pq, K, t_norm_base);  % BUGFIX: Pdb is P1 and Pq is P2 in this function!
 
-% figure; ax = axes;
-% showMatchedFeatures(img0,img1,fliplr(Pdb'),fliplr(Pq'),'montage','Parent',ax);
-% title(ax, 'Candidate point matches');
-% legend(ax, 'Matched points 1','Matched points 2');
+% Use the ground truth to set the scale of this bootstrap transformation.
+t_norm_base = 0.1294;
+
+% Estimate the F by ransac, extract the correct R,t and triangulate landmarks.
+[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pdb,Pq, K, t_norm_base);  % BUGFIX: Pdb is P1 and Pq is P2 in this function and not the opposite.
 
 %% Plotting - Debugging. 
 % plotMatches(flipud(query_kps), flipud(database_kps), img0); 
@@ -141,7 +145,7 @@ t_norm_base = 0.1294;%ground_truth(bootstrap_frames(2)) - ground_truth(bootstrap
 
 %% Assign initial state. 
 state = struct; 
-state.T = [R_CW t3_CW; [0,0,0,1]];  %BUGFIX, homogenous coordinate transform 
+state.T = [R_CW t3_CW; [0,0,0,1]];  %BUGFIX: Homogenous transformation matrix has [0,0,0,1] as last row, not [1,1,1,1] 
 state.P = Pq;
 state.Pdb = Pdb; 
 state.X = X; 
@@ -157,16 +161,15 @@ for i = 2:size(imgs_contop,3)
     fprintf('\nProcessing frame %d\n=====================\n', i);
     img_prev = imgs_contop(:,:,i-1); 
     img = imgs_contop(:,:,i); 
+    
     % Get last state information. 
     state_prev = trajectory(end); 
     T_prev = state_prev.T; 
     P_prev = state_prev.P; 
     X_prev = state_prev.X; 
-    % Reinitialize feature points if below threshold
-    % !!!NOTE: DON'T DO IT HERE! FIRST WE NEED A MOTION ESTIMATE BEFORE WE CAN
-    % EVEN TRIANGULATE NEW LANDMARKS!!!
-    disp("KL Tracking ..."); 
-        
+
+    % Track keypoints with MATLAB's KLT algorithm.
+    disp("KL Tracking ...");   
     pointTracker = vision.PointTracker('MaxBidirectionalError',inf);
     initialize(pointTracker, fliplr(P_prev'), img_prev);
     [points,validity] = pointTracker(img);
@@ -180,13 +183,9 @@ for i = 2:size(imgs_contop,3)
             X = [X,X_prev(:,l)];
         end
     end
-%     figure; ax = axes;
-% showMatchedFeatures(img_prev,img,fliplr(Pdb'),fliplr(Pq'),'montage','Parent',ax);
-% title(ax, 'Candidate point matches');
-% legend(ax, 'Matched points 1','Matched points 2');
-
-    % !!!NOTE: KLT WORKS!      
-    %4.a) Try MATLAB's P3P
+    fprintf('KLT number of tracked keypoints: %d\n', nnz(validity));
+    
+    % Find new camera pose with MATLAB's P3P implementation.
     imagePoints = fliplr(Pq');
     worldPoints = X(1:3,:);
     worldPoints = worldPoints';
@@ -198,7 +197,8 @@ for i = 2:size(imgs_contop,3)
         
     [worldOrientation,worldLocation,status] = estimateWorldCameraPose(imagePoints,worldPoints,cameraParams,...
         'MaxReprojectionError',10);
-    % Convert.
+    
+    % Convert T_WC->T_CW
     R_WC = worldOrientation;
     t_WC = worldLocation';
     T_WC = [R_WC,t_WC];
@@ -207,12 +207,12 @@ for i = 2:size(imgs_contop,3)
     R_CW = T_CW(1:3,1:3);
     t3_CW = T_CW(1:3,4);
         
-    assert(isequal(size([R_CW t3_CW]), [3,4])); 
+    assert(isequal(size([R_CW t3_CW]), [3,4])); % BUGFIX: The SIZES have to be the same. 
     
     % Triangulate new landmarks, AFTER motion has been estimated.
     centroid_x = mean(Pq(2,:));
     centroid_y = mean(Pq(1,:));
-    if size(X,2)<45%or(abs(centroid_x-320)>32,abs(centroid_y-240)>24)%
+    if size(X,2)<45 %or(abs(centroid_x-320)>32,abs(centroid_y-240)>24)% % TODO: Find correct
         disp("Triangulating new landmarks...")
         % Detect and extract new features in previous frames.
         harris_scores = harris(img_prev, harris_patch_size, harris_kappa);
@@ -232,22 +232,26 @@ for i = 2:size(imgs_contop,3)
         Pq = keypoints_2(:, query_indices);
         Pdb = keypoints(:, match_indices);     
 
-        % Find the norm of the 
+        % Find the norm of the transform from the last to the current
+        % frame. Required for scaling the result from the fundamental
+        % matrix computation!
         T_CcCp = [R_CW t3_CW; [0,0,0,1]]*inv(T_prev);
         t3_CcCp = T_CcCp(1:3,4);
         [~, ~, X_new, ~] = estimateTrafoFund(Pdb, Pq, K, norm(t3_CcCp));  % BUGFIX: Use the norm of the relative translation, not w.r.t world frame!
-        % NOTE: The problem we have here, is the noise in Z and Y
+        % OBSERVATION: We have a problem here that there is noise in Z and Y
         % direction. Without it, the difference was exactly 0.5, as GT
         % suggests, but with GT the distance was 1.36. This is okay because
         % we triangulated a completely new pointcloud. But this will
         % inevitably lead to drift and errors in the long term.
         
-        X = inv(T_prev)*X_new;  % Use the T_CW of the previous frame to bring back everything to world frame.
+        % Use the T_CW of the previous frame to bring back the pointcloud to the world frame.
+        X = inv(T_prev)*X_new;  
+        fprintf('Number of new ladnmarks: %d\n', size(X_new,2));
     end
     
     % Renew state and add to trajectory.
     state = struct; 
-    state.T = [R_CW t3_CW; [0,0,0,1]];  %BUGFIX: Correct homogenous transformation matrix has [0,0,0,1] as last row, not [1,1,1,1] 
+    state.T = [R_CW t3_CW; [0,0,0,1]];  %BUGFIX: Homogenous transformation matrix has [0,0,0,1] as last row, not [1,1,1,1] 
     state.P = Pq; 
     state.Pdb = Pdb; 
     state.X = X; 

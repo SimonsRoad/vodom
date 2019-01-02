@@ -103,18 +103,15 @@ for i=1:70
     positions = [positions;(pos(1:3))'];
     
     % Plot stuff.
-    scatter3((X_curr(1,:))',(X_curr(2,:))',(X_curr(3,:))','rx');
+    scatter3((X_curr(1,:),)
+    cam = plotCamera('Location',(pos(1:3))','Orientation',T_WC(1:3,1:3),'Opacity',0);
     hold on;
-    cam = plotCamera('Location',(pos(1:3))','Orientation',T_WC(1:3,1:3),'Opacity',0,'Color','g','Size',0.5);
+    plot3(positions(:,1),positions(:,2),positions(:,3))
     hold on;
-    plot3(positions(:,1),positions(:,2),positions(:,3),'b')
-    hold on;
-    set(gca,'CameraUpVector',[0 -1 0]); % Make the y-axis point down.
     xlabel('X');
     ylabel('Y');
     zlabel('Z');    
-    axis ([-10,10,-10,10,-10,10]);
-    axis manual;
+    axis equal;
 
     
     pause(0.1);
