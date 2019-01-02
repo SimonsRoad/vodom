@@ -34,7 +34,7 @@ end
 [~,~,V] = svd(Q);
 M = V(:,end);
 
-M = reshape(M, 4, 3)';
+M = reshape(M, 4, 3)'
 
 %% Extract [R|t] with the correct scale from M ~ [R|t]
 
@@ -51,7 +51,7 @@ R_tilde = U*V';
 
 % Normalization scheme using the Frobenius norm:
 % recover the unknown scale using the fact that R_corr is a true rotation matrix
-alpha = norm(R_tilde, 'fro')/norm(R, 'fro');
+alpha = norm(R_tilde, 'fro')/norm(R, 'fro')
 
 % Build M with the corrected rotation and scale
 M = [R_tilde alpha*M(:,4)];
