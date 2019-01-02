@@ -6,12 +6,6 @@ clear all; close all; clc;  %#ok<CLALL>
 
 addpath(genpath('functions/'));
 
-%addpath('plotting/'); 
-%addpath('features/'); 
-%addpath('klt/'); 
-%addpath('ransac/'); 
-%addpath('debug_new/'); %Debug: Functions 1:1 from exercise solution.
-
 disp("################################")
 disp("vodom - Visual Odometry Pipeline")
 disp("Nikhilesh Alatur, Simon Schaefer")
@@ -43,7 +37,7 @@ if ds == 0
         sprintf('%06d.png',bootstrap_frames(2))]);
     imgs_bootstrap = [img0; img1]; 
     % Load continous operation images. 
-    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame)); % BUGFIX: Convert to uint8, else can't be processed as image.
+    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), last_frame)); 
     k = 1; 
     for i = (bootstrap_frames(2)+1):last_frame
         img = imread([kitti_path '/00/image_0/' sprintf('%06d.png',i)]);
@@ -108,40 +102,46 @@ end
 %% Bootstrap Initialization.
 disp("Starting bootstrapping initialization ..."); 
 
+% Load parameter. 
+patch_size  = params('patch_size'); 
+kappa       = params('harris_kappa'); 
+r_sup       = params('r_suppression'); 
+num_kp_init = params('num_keypoints_init'); 
+r_desc      = params('r_desciptor');
+lambda      = params('match_lambda'); 
+
 % Detect and extract features in img0.
-harris_scores0 = harris(img0, params('patch_size'), params('harris_kappa'));
-keypoints0 = selectKeypoints(...
-    harris_scores0, params('num_keypoints_init'), params('r_suppression'));
-descriptors0 = describeKeypoints(img0, keypoints0, params('r_desciptor'));
-
+scores_prev = harris(img0, patch_size, kappa);
+kp_prev = selectKeypoints(scores_prev, num_kp_init, r_sup);
+desc_prev = describeKeypoints(img0, kp_prev, r_desc);
 % Detect and extract features in img1.
-harris_scores1 = harris(img1, params('patch_size'), params('harris_kappa'));
-keypoints1 = selectKeypoints(...
-    harris_scores1, params('num_keypoints_init'), params('r_suppression'));
-descriptors1 = describeKeypoints(img1, keypoints1, params('r_desciptor'));
-
+harris_scores = harris(img1, patch_size, kappa);
+kp = selectKeypoints(harris_scores, num_kp_init, r_sup);
+desc = describeKeypoints(img1, kp, r_desc);
 % Match them!
-matches = matchDescriptors(descriptors1, descriptors0, params('match_lambda'));
+matches = matchDescriptors(desc, desc_prev, lambda);
 [~, query_indices, match_indices] = find(matches);
-Pq = keypoints1(:, query_indices);
-Pdb = keypoints0(:, match_indices);     
+Pq = kp(:, query_indices);
+Pdb = kp_prev(:, match_indices);     
 
 % Use the ground truth to set the scale of this bootstrap transformation.
 t_norm_base = 0.1294;   % ToDo: Take this from ground truth.
 
-% Estimate the F by ransac, extract the correct R,t and triangulate landmarks.
-[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pdb,Pq, K, t_norm_base);  % BUGFIX: Pdb is P1 and Pq is P2 in this function and not the opposite.
+% Estimate the F by ransac, extract the correct R,t & triangulate landmarks.
+[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pdb,Pq, K, t_norm_base);  
 
 %% Plotting - Debugging. 
+% figure
 % plotMatches(flipud(query_kps), flipud(database_kps), img0); 
 % plotPointCloud(X); 
 
 %% Assign initial state. 
 state = struct; 
-state.T = [R_CW t3_CW; [0,0,0,1]];  %BUGFIX: Homogenous transformation matrix has [0,0,0,1] as last row, not [1,1,1,1] 
+state.T = [R_CW t3_CW; [0,0,0,1]];  
 state.P = Pq;
 state.Pdb = Pdb; 
 state.X = X; 
+state.Xin = X; 
 trajectory = [state];  %#ok<NBRAK>
 
 disp("Initial transformation: "); 
@@ -163,9 +163,9 @@ for i = 2:size(imgs_contop,3)
 
     % Track keypoints with MATLAB's KLT algorithm.
     disp("KL Tracking ...");   
-    pointTracker = vision.PointTracker('MaxBidirectionalError',inf);
-    initialize(pointTracker, fliplr(P_prev'), img_prev);
-    [points,validity] = pointTracker(img);
+    point_tracker = vision.PointTracker('MaxBidirectionalError',inf);
+    initialize(point_tracker, fliplr(P_prev'), img_prev);
+    [points,validity] = point_tracker(img);
     Pq = [];
     Pdb = [];
     X = [];
@@ -178,78 +178,123 @@ for i = 2:size(imgs_contop,3)
     end
     fprintf('KLT number of tracked keypoints: %d\n', nnz(validity));
     
-    % Find new camera pose with MATLAB's P3P function.
-    imagePoints = fliplr(Pq');
-    worldPoints = X(1:3,:);
-    worldPoints = worldPoints';
-    K_intrinsics = [K(1,1),0,0;...
-        0,K(2,2),0;...
-        K(1,3),K(2,3),1];   % Cause MATLAB has different convention for K.
-    cameraParams = cameraParameters('IntrinsicMatrix', K_intrinsics);
-    [worldOrientation,worldLocation,status] = estimateWorldCameraPose(imagePoints,worldPoints,cameraParams,...
-        'MaxReprojectionError',10, 'MaxNumTrials',2000);
+    % Either use P3P to track points or directly triangulate new landmarks.
+    do_triangulate = false; 
+    if nnz(validity) >= 4
+        % Find new camera pose with MATLAB's P3P function.
+        image_points = fliplr(Pq');
+        world_points = X(1:3,:)';
+        K_matlab = [K(1,1),0,0;0,K(2,2),0;K(1,3),K(2,3),1]; 
+        camera_params = cameraParameters('IntrinsicMatrix', K_matlab);
+        [world_orientation,world_location,status] = estimateWorldCameraPose(...
+            image_points, world_points, camera_params,...
+            'MaxReprojectionError',10, 'MaxNumTrials',2000);
+        % Convert T_WC->T_CW.
+        R_WC = world_orientation;
+        t_WC = world_location';
+        T_WC = [R_WC,t_WC;[0,0,0,1]];
+        T_CW = inv(T_WC);
+        R_CW = T_CW(1:3,1:3);
+        t3_CW = T_CW(1:3,4);
+        assert(isequal(size([R_CW t3_CW]), [3,4])); 
+        % Check whether it is necessary to triangulate new landmarks, 
+        % after motion has been estimated.
+        if size(X,2)<params('min_num_landmarks')
+            do_triangulate = true; 
+            fprintf('Few landmarks, '); 
+        elseif nnz(status)<params('min_num_inliers')
+            do_triangulate = true; 
+            fprintf('P3P bad status, '); 
+        %elseif abs(mean(Pq(2,:))-320)>32 || abs(mean(Pq(1,:))-240)>24
+        %    do_triangulate = true; 
+        %    fprintf('Landmarks badly distributed, '); 
+        end
+    else
+        do_triangulate = true; 
+        fprintf('Not enough KLT tracked points, '); 
+    end
     
-    % Convert T_WC->T_CW
-    R_WC = worldOrientation;
-    t_WC = worldLocation';
-    T_WC = [R_WC,t_WC];
-    T_WC = [T_WC;[0,0,0,1]];
-    T_CW = inv(T_WC);
-    R_CW = T_CW(1:3,1:3);
-    t3_CW = T_CW(1:3,4);
-        
-    assert(isequal(size([R_CW t3_CW]), [3,4])); % BUGFIX: The SIZES have to be the same. 
-    
-    % Triangulate new landmarks, after motion has been estimated.
-    centroid_x = mean(Pq(2,:));
-    centroid_y = mean(Pq(1,:));
-    if size(X,2)<45 %or(abs(centroid_x-320)>32,abs(centroid_y-240)>24)% % TODO: Find optimal indicator for re-triangulation.
-        disp("Triangulating new landmarks...")
-        % Detect and extract new features in previous frames.
-        harris_scores_prev = harris(img_prev, params('patch_size'), params('harris_kappa'));
-        keypoints_prev = selectKeypoints(...
-            harris_scores_prev, params('num_keypoints_init'), params('r_suppression'));
-        descriptors_prev = describeKeypoints(img_prev, keypoints_prev, params('r_desciptor'));
-        
-        % Detect and extract features in the current frame.
-        harris_scores_curr = harris(img, params('patch_size'), params('harris_kappa'));
-        keypoints_curr = selectKeypoints(...
-            harris_scores_curr, params('num_keypoints_init'), params('r_suppression'));
-        descriptors_curr = describeKeypoints(img, keypoints_curr, params('r_desciptor'));
-        
-        % Match them!
-        matches = matchDescriptors(descriptors_curr, descriptors_prev, params('match_lambda'));
-        [~, query_indices, match_indices] = find(matches);
-        Pq = keypoints_curr(:, query_indices);
-        Pdb = keypoints_prev(:, match_indices);     
-
+    % Triangulate new landmarks if necessary. 
+    if do_triangulate
+        fprintf('triangulating new landmarks...\n')
+        % Load parameter. 
+        patch_size  = params('patch_size'); 
+        kappa       = params('harris_kappa'); 
+        r_sup       = params('r_suppression'); 
+        num_kp_cont = params('num_keypoints_cont'); 
+        r_desc      = params('r_desciptor');
+        lambda      = params('match_lambda'); 
+        % Find most distant database image with sufficient matches, i.e. 
+        % start with large distant and decrease it until either the 
+        % previous (shift = 1) image or a sufficient number of matches 
+        % is obtained. 
+        do_research = true; 
+        shift  = min(params('triang_max_baseline'), size(trajectory,1)-1); 
+        while do_research
+            img_db = imgs_contop(:,:,i-shift); 
+            T_db   = trajectory(end-shift).T; 
+            % Detect and extract new features in previous frames.
+            scores_prev = harris(img_db, patch_size, kappa);
+            kp_prev = selectKeypoints(scores_prev, num_kp_cont, r_sup); 
+            desc_prev = describeKeypoints(img_db, kp_prev, r_desc);
+            % Detect and extract features in the current frame.
+            harris_scores = harris(img, patch_size, kappa);
+            kp = selectKeypoints(harris_scores, num_kp_cont, r_sup);
+            desc = describeKeypoints(img, kp, r_desc);      
+            % Match them!
+            matches = matchDescriptors(desc, desc_prev, lambda);
+            [~, query_indices, match_indices] = find(matches);
+            Pq = kp(:, query_indices);
+            Pdb = kp_prev(:, match_indices);   
+            fprintf('... number of matches: %d\n', size(Pq,2)); 
+            % Check whether matches are sufficiently many. 
+            if size(Pq,2) > params('min_num_landmarks')||shift == 1
+                do_research = false; 
+            else
+                shift = shift - 1; 
+            end
+        end
         % Find the norm of the transform from the last to the current
-        % frame. Required for scaling the translation vector from estimateTrafoFund.
-        T_CcCp = [R_CW t3_CW; [0,0,0,1]]*inv(T_prev);
+        % frame. Required for scaling the translation vector 
+        % from estimateTrafoFund.
+        T_CcCp = [R_CW t3_CW; [0,0,0,1]]*inv(T_db);
         t3_CcCp = T_CcCp(1:3,4);
-        
+     
         % Triangulate new landmarks.
-        [~, ~, X_new, ~] = estimateTrafoFund(Pdb, Pq, K, norm(t3_CcCp));  % BUGFIX: Use the norm of the relative translation, not w.r.t world frame!
+        [~, ~, X_new, ~] = estimateTrafoFund(Pdb, Pq, K, norm(t3_CcCp));
         % OBSERVATION: We have a problem here that there is noise in Z and Y
         % direction. Without it, the difference was exactly 0.5, as GT
         % suggests, but with GT the distance was 1.36. This is okay because
         % we triangulated a completely new pointcloud. But this will
         % inevitably lead to drift and errors in the long term.
         
-        % Use the T_CW of the previous frame to bring back the pointcloud to the world frame.
-        X = inv(T_prev)*X_new;  
-        fprintf('Number of new landmarks: %d\n', size(X_new,2));
+        % Discard landmarks that are very far away (as they most probably
+        % are created by triangulation depth errors). 
+        status = 0<X_new(3,:) & X_new(3,:)<params('landmarks_max_dis'); 
+        fprintf('... number of distance landmarks: %d\n', nnz(~status));
+        
+        % Use the T_CW of the previous frame to bring back the 
+        % pointcloud to the world frame. 
+        X = inv(T_db)*X_new(:, status);  
+        Pq = Pq(:, status); 
+        Pdb = Pdb(:, status); 
+        status = true(size(X,2),1); 
+        fprintf('... number of new landmarks: %d\n', size(X_new,2));
     end
-    
+        
     % Renew state and add to trajectory.
     state = struct; 
-    state.T = [R_CW t3_CW; [0,0,0,1]];  % BUGFIX: Homogenous transformation matrix has [0,0,0,1] as last row, not [1,1,1,1] 
+    state.T = [R_CW t3_CW; [0,0,0,1]];  
     state.P = Pq; 
     state.Pdb = Pdb; 
     state.X = X; 
-    trajectory = [trajectory; state];
-    
+    state.Xin = X(:,status); 
+    trajectory = [trajectory; state]; %#ok<AGROW>
+    fprintf('Position: x=%f, y=%f, z=%f\n', ...
+            state.T(1,4), state.T(2,4), state.T(3,4));
     % Plotting. 
-    plotOverall(img, trajectory); 
-    pause(0.01);
+    plotOverall(img, trajectory);
+    % plotMatches(flipud(Pq), flipud(Pdb), img); 
+    
+    pause(0.5);
 end
