@@ -122,14 +122,12 @@ t_norm_base = 1.0;
 [R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pdb, P, ...
                            K, t_norm_base, params('num_iter_fund'));  
 
-% stereo_params = stereoParameters(K_matlab,K_matlab,R_CW,t3_CW); 
-% X = triangulate(Pdb', P', stereo_params); 
-% X = X'; 
+X = triangulate(
 
 % Plotting. 
 figure
 %plotMatches(P, Pdb, img1);
-plotPointCloud(X(:,25), P(:,25), img1); 
+plotPointCloud(X(:,1:5), P(:,1:5), img1); 
 
 % Assign initial state. 
 state = struct; 

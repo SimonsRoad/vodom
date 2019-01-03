@@ -46,8 +46,8 @@ coord1 = 1; coord2 = 3;
 plot(positions(:,coord1),positions(:,coord2)); 
 hold on; 
 plot((trajectory(end).Xin(coord1,:))',(trajectory(end).Xin(coord2,:))','*'); 
-xlabel('X^W_1');
-ylabel('X^W_2');
+xlabel('X^W_1 = X');
+ylabel('X^W_2 = Z');
 axis equal;
 
 % NEW (3D plot with trajectory, landmarks and camera).

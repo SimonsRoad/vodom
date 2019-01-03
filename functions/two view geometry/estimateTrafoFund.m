@@ -1,4 +1,5 @@
-function [R, t3, cloud, t3norm] = estimateTrafoFund(kp0, kp1, K, t3norm)
+function [R, t3, cloud, t3norm] = estimateTrafoFund(kp0, kp1, ...
+                                  K, t3norm, num_iter)
 % Estimate transformation between previous and current image using 
 % fundamental matrix estimate (estimateFundamentalMatrix - function). 
 % @param[in]    qm_keypoints    matched camera 0 keypoints [2,L]. 
@@ -10,22 +11,21 @@ function [R, t3, cloud, t3norm] = estimateTrafoFund(kp0, kp1, K, t3norm)
 p0 = [flipud(kp0);ones(1,length(kp0))];
 p1 = [flipud(kp1);ones(1,length(kp1))];
 F = estimateFundamentalMatrix(fliplr(kp0'), fliplr(kp1'), ...
-                              'NumTrials', 1000);
+                              'Method', 'LMedS', 'NumTrials', num_iter);
+% Obtain extrinsic parameters (R,t) from F and disambiguate the 
+% orientation and translation among the four possible configurations.                    
 E = K'*F*K;
-% Obtain extrinsic parameters (R,t) from E
 [Rots,u3] = decomposeEssentialMatrix(E);
-
-% Disambiguate among the four possible configurations
 [R,t3] = disambiguateRelativePose(Rots,u3,p0,p1,K,K);
+% Renormalize translation vector. 
 if isnan(t3norm)
-    t3 = t3/norm(t3);   % Because we do svd, this will already have unit length!
+    t3 = t3/norm(t3);   
     t3norm = norm(t3); 
 else
     t3 = (t3/norm(t3))*t3norm; % BUGFIX: We multiply it with t3norm, rather than dividing by it.
 end
-% Triangulate a point cloud using the final transformation (R,T)
+% Triangulate a point cloud using the final transformation (R,T). 
 M1 = K * eye(3,4);
 M2 = K * [R, t3];
 cloud = linearTriangulation(p0,p1,M1,M2);
-
 end
