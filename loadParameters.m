@@ -10,12 +10,14 @@ parameters('r_suppression') = 8;         % radius of suppressing adj. kps.
 parameters('r_desciptor') = 9;           % pixel radius of patch descriptor. 
 parameters('match_lambda') = 5;          % matching threshold. 
 
-parameters('min_num_landmarks') = 30;    % min #landmarks in contop.
+parameters('min_num_landmarks') = 40;    % min #landmarks in contop.
 parameters('min_num_inliers') = 25;      % min #inliers of P3P in contop.
 parameters('landmarks_max_dis') = 20;    % max distance cam-landmark. 
 parameters('triang_max_baseline') = 4;   % max distance between db & q img
                                          % to triangulate new landmarks. 
 
+parameters('klt_max_bierror') = inf;     % max. bidirectional error for KLT.                        
+                                         
 parameters('min_num_p3p') = 10;          % min #point matches for p3p.                                          
 parameters('num_iter_p3p') = 2000;       % max #iterations ransac for p3p.                                      
 parameters('max_reproj_error_p3p') = 8;  % max reprojection error for p3p 

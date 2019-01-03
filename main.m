@@ -11,7 +11,7 @@ disp("vodom - Visual Odometry Pipeline")
 disp("Nikhilesh Alatur, Simon Schaefer")
 disp("################################")
 %% Choose and load dataset. 
-ds = 0; % 0: KITTI, 1: Malaga, 2: parking
+ds = 2; % 0: KITTI, 1: Malaga, 2: parking
 
 % Parameters. 
 params = loadParameters(ds); 
@@ -123,15 +123,15 @@ desc = describeKeypoints(img1, kp, r_desc);
 % Match them!
 matches = matchDescriptors(desc, desc_prev, lambda);
 [~, query_indices, match_indices] = find(matches);
-Pq = kp(:, query_indices);
+P = kp(:, query_indices);
 Pdb = kp_prev(:, match_indices); 
-fprintf('... number of matches: %d\n', size(Pq,2)); 
+fprintf('... number of matches: %d\n', size(P,2)); 
 
 % Use the ground truth to set the scale of this bootstrap transformation.
 t_norm_base = 0.1294;   % ToDo: Take this from ground truth.
 
 % Estimate the F by ransac, extract the correct R,t & triangulate landmarks.
-[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pdb,Pq, K, t_norm_base);  
+[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pdb,P, K, t_norm_base);  
 
 %% Plotting - Debugging. 
 % figure
@@ -141,15 +141,14 @@ t_norm_base = 0.1294;   % ToDo: Take this from ground truth.
 %% Assign initial state. 
 state = struct; 
 state.T = [R_CW t3_CW; [0,0,0,1]];  
-state.P = Pq;
-state.Pdb = Pdb; 
+state.P = P;
 state.X = X; 
 state.Xin = X;  
 trajectory = [state];  %#ok<NBRAK>
 
 disp("Initial transformation: "); 
 disp([R_CW t3_CW]); 
-fprintf('Initial number of matches: %d\n', size(Pq,2));
+fprintf('Initial number of matches: %d\n', size(P,2));
 
 %% Continuous operation.
 figure; 
@@ -160,21 +159,22 @@ for i = 2:size(imgs_contop,3)
     
     % Get last state information. 
     state_prev = trajectory(end); 
-    T_prev = state_prev.T; 
-    P_prev = state_prev.P; 
-    X_prev = state_prev.X; 
+    T_prev   = state_prev.T; 
+    P_prev   = state_prev.P; 
+    X_prev   = state_prev.X; 
 
     % Track keypoints with MATLAB's KLT algorithm.
     disp("KL Tracking ...");   
-    point_tracker = vision.PointTracker('MaxBidirectionalError',inf);
+    point_tracker = vision.PointTracker(...
+        'MaxBidirectionalError', params('klt_max_bierror'));
     initialize(point_tracker, fliplr(P_prev'), img_prev);
     [points,validity] = point_tracker(img);
-    Pq = [];
+    P = [];
     Pdb = [];
     X = [];
     for l=1:size(validity,1)
         if(validity(l)==1)
-            Pq = [Pq,(fliplr(points(l,:)))']; %#ok<AGROW>
+            P = [P,(fliplr(points(l,:)))']; %#ok<AGROW>
             Pdb = [Pdb,P_prev(:,l)]; %#ok<AGROW>
             X = [X,X_prev(:,l)]; %#ok<AGROW>
         end
@@ -185,7 +185,7 @@ for i = 2:size(imgs_contop,3)
     do_triangulate = false; 
     if nnz(validity) >= params('min_num_p3p')
         % Find new camera pose with MATLAB's P3P function.
-        image_points = fliplr(Pq');
+        image_points = fliplr(P');
         world_points = X(1:3,:)';
         K_matlab = [K(1,1),0,0;0,K(2,2),0;K(1,3),K(2,3),1]; 
         camera_params = cameraParameters('IntrinsicMatrix', K_matlab);
@@ -239,7 +239,7 @@ for i = 2:size(imgs_contop,3)
             T_CW_db = trajectory(end-shift).T; 
             % Detect and extract new features in previous frames.
             scores_prev = harris(img_db, patch_size, kappa);
-            kp_prev = selectKeypoints(scores_prev, num_kp_cont, r_sup); 
+            kp_prev = selectKeypoints(scores_prev, num_kp_cont, r_sup);
             desc_prev = describeKeypoints(img_db, kp_prev, r_desc);
             % Detect and extract features in the current frame.
             harris_scores = harris(img, patch_size, kappa);
@@ -265,7 +265,7 @@ for i = 2:size(imgs_contop,3)
         t3_CcCp = T_CcCp(1:3,4);
      
         % Triangulate new landmarks.
-        [~,~,X_new,~] = estimateTrafoFund(Pdb_new, Pq_new, K, norm(t3_CcCp));
+        [~,~,X_new,~] = estimateTrafoFund(Pdb_new, Pq_new,K, norm(t3_CcCp));
         % OBSERVATION: We have a problem here that there is noise in Z and Y
         % direction. Without it, the difference was exactly 0.5, as GT
         % suggests, but with GT the distance was 1.36. This is okay because
@@ -276,8 +276,7 @@ for i = 2:size(imgs_contop,3)
         % and old landmarks. 
         X_old = T_CW_db*X;        
         X_cand = [X_old X_new];
-        Pq_cand = [Pq Pq_new]; 
-        Pdb_cand = [Pdb Pdb_new]; 
+        P_cand = [P Pq_new]; 
         
         % Discard landmarks that are very far away (as they most probably
         % are created by triangulation depth errors), behind the camera 
@@ -285,22 +284,27 @@ for i = 2:size(imgs_contop,3)
         status_close   = X_cand(3,:)<params('landmarks_max_dis'); 
         status_infront = X_cand(3,:)>0; 
         status = status_close & status_infront; 
-        fprintf('... number of distance landmarks: %d\n', nnz(~status));
-        
+        fprintf('... number of distance landmarks: %d\n', nnz(~status));        
         % Use the T_CW of the previous frame to bring back the 
         % pointcloud to the world frame. 
         X = inv(T_CW_db)*X_cand(:, status);  
-        Pq = Pq_cand(:, status); 
-        Pdb = Pdb_cand(:, status); 
+        P = P_cand(:, status); 
         status = true(size(X,2),1); 
         fprintf('... number of new landmarks: %d\n', size(X,2));
+    end
+           
+    % Check whether any landmarks are still available, otherwise take 
+    % previous ones. 
+    if size(X, 2) < 5
+       X = X_prev; 
+    %   P = P_prev; 
+       disp('Taking previous set of landmarks');
     end
         
     % Renew state and add to trajectory.
     state = struct; 
     state.T = [R_CW t3_CW; [0,0,0,1]];  
-    state.P = Pq; 
-    state.Pdb = Pdb; 
+    state.P = P; 
     state.X = X; 
     state.Xin = X(:,status); 
     trajectory = [trajectory; state]; %#ok<AGROW>
