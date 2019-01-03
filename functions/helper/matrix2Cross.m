@@ -1,12 +1,16 @@
 function x = matrix2Cross(M)
-%assert(abs(M(3,2)+M(2,3)) < 1e-4); 
-%assert(abs(M(3,1)+M(1,3)) < 1e-4); 
-%assert(abs(M(2,1)+M(1,2)) < 1e-4); 
-x = zeros(3,1); 
-% x(1) = M(2,1); BUG
-% x(2) = M(1,3); BUG
-% x(3) = M(3,2); BUG
-x(1) = M(2,3);  % BUGFIX: Correct indices.
-x(2) = M(1,3);
-x(3) = M(2,1);
+% MATRIX2CROSS  Compute 3D vector corresponding to an antisymmetric matrix
+%
+% Computes the 3D vector x corresponding to an antisymmetric matrix M such
+% that M*y = cross(x,y) for all 3D vectors y.
+%
+% Input: 
+%   - M(3,3) : antisymmetric matrix
+%
+% Output: 
+%   - x(3,1) : column vector
+%
+% See also CROSS2MATRIX
+x = [-M(2,3); M(1,3); -M(1,2)];
+
 end

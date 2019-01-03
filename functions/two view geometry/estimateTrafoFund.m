@@ -9,7 +9,8 @@ function [R, t3, cloud, t3norm] = estimateTrafoFund(kp0, kp1, K, t3norm)
 % @param[out]   cloud           triangulated point cloud [3,L]. 
 p0 = [flipud(kp0);ones(1,length(kp0))];
 p1 = [flipud(kp1);ones(1,length(kp1))];
-F = estimateFundamentalMatrix(fliplr(kp0'), fliplr(kp1'));
+F = estimateFundamentalMatrix(fliplr(kp0'), fliplr(kp1'), ...
+                              'NumTrials', 1000);
 E = K'*F*K;
 % Obtain extrinsic parameters (R,t) from E
 [Rots,u3] = decomposeEssentialMatrix(E);

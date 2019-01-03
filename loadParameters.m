@@ -19,7 +19,7 @@ parameters('triang_max_baseline') = 4;   % max distance between db & q img
 parameters('klt_max_bierror') = inf;     % max. bidirectional error for KLT.                        
                                          
 parameters('min_num_p3p') = 10;          % min #point matches for p3p.                                          
-parameters('num_iter_p3p') = 2000;       % max #iterations ransac for p3p.                                      
+parameters('num_iter_p3p') = 500;        % max #iterations ransac for p3p.                                      
 parameters('max_reproj_error_p3p') = 8;  % max reprojection error for p3p 
                                          % ransac trafo estimate. 
 

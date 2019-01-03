@@ -44,7 +44,9 @@ if ds == 0
         img = imread([kitti_path '/00/image_0/' sprintf('%06d.png',i)]);
         imgs_contop(:,:,k) = img; 
         k = k + 1; 
-    end     
+    end   
+    % Adapt ground truth to initialization. 
+        ground_truth = ground_truth(bootstrap_frames(2)+1:last_frame, :);
 elseif ds == 1
     malaga_path = 'datasets/malaga/'; 
     images = dir([malaga_path ...
@@ -97,6 +99,8 @@ elseif ds == 2
         imgs_contop(:,:,k) = img; 
         k = k + 1; 
     end
+    % Adapt ground truth to initialization. 
+    ground_truth = ground_truth(bootstrap_frames(2)+1:last_frame, :);
 else
     assert(false);
 end
@@ -212,6 +216,9 @@ for i = 2:size(imgs_contop,3)
         %elseif abs(mean(Pq(2,:))-320)>32 || abs(mean(Pq(1,:))-240)>24
         %    do_triangulate = true; 
         %    fprintf('Landmarks badly distributed, '); 
+        %elseif abs(var(Pq(2,:)))>10 || abs(var(Pq(1,:)))>10
+        %    do_triangulate = true; 
+        %    fprintf('Landmarks badly distributed, '); 
         end
     else
         do_triangulate = true; 
@@ -297,7 +304,6 @@ for i = 2:size(imgs_contop,3)
     % previous ones. 
     if size(X, 2) < 5
        X = X_prev; 
-    %   P = P_prev; 
        disp('Taking previous set of landmarks');
     end
         
@@ -314,4 +320,20 @@ for i = 2:size(imgs_contop,3)
     plotOverall(img, trajectory);
     %plotMatches(flipud(Pq), flipud(Pdb), img); 
     pause(0.01);
+end
+
+%% Post Bundle-Adjustment.
+if isnan(ground_truth)
+    disp("No groud_truth available !");
+else
+    disp("Compare trajectory to ground_truth ..."); 
+    num_points = size(trajectory,1); 
+    % Determine groundtruth and trajectory positions. 
+    p_W_GT       = [ground_truth(1:num_points, :)'; zeros(1,num_points)]; 
+    p_W_E = zeros(3,num_points); 
+    for i = 1:num_points
+        p_W_E(:,i) = [trajectory(i).T(1,4); trajectory(i).T(3,4); 0.0];
+    end
+    % Align groundtruth and estimate to resolve scale and rotational errors. 
+    p_W_E_aligned = alignEstimateToGroundTruth(p_W_GT, p_W_E); 
 end
