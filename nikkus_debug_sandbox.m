@@ -5,18 +5,17 @@ clc;
 close all;
 %img_prev = img0;
 %img = img1;
-pt = [11:20];   %5,7,8
-%%
+pt = [20:30];   %5,7,8
 figure;
 subplot(1,2,1);
-imshow(img_prev);
+imshow(img0);
 hold on;
 plot(Pdb(2, pt), Pdb(1, pt), 'rx', 'Linewidth', 2);
 %
 subplot(1,2,2);
-imshow(img);
+imshow(img1);
 hold on;
-plot(Pq(2, pt), Pq(1, pt), 'gx', 'Linewidth', 2);
+plot(P(2, pt), P(1, pt), 'gx', 'Linewidth', 2);
 
 %%
 figure; ax = axes;

@@ -11,7 +11,7 @@ disp("vodom - Visual Odometry Pipeline")
 disp("Nikhilesh Alatur, Simon Schaefer")
 disp("################################")
 %% Choose and load dataset. 
-ds = 2; % 0: KITTI, 1: Malaga, 2: parking
+ds = 0; % 0: KITTI, 1: Malaga, 2: parking
 
 % Parameters. 
 p = loadParameters(ds); 
@@ -24,7 +24,7 @@ disp("Loading dataset images ...");
 if ds == 0
     ground_truth = load(['datasets/kitti/' '/poses/00.txt']);
     ground_truth = ground_truth(:, [end-8 end]);
-    last_frame = 454;%0;   
+    last_frame = 454; %0;   
     K = [7.188560000000e+02 0 6.071928000000e+02
         0 7.188560000000e+02 1.852157000000e+02
         0 0 1];
@@ -117,26 +117,25 @@ disp("Starting bootstrapping initialization ...");
 fprintf('... number of matches: %d\n', size(P,2)); 
 
 % Use the ground truth to set the scale of this bootstrap transformation.
-t_norm_base = 0.1294;  
+t_norm_base = 1.0;  
 
 % Estimate the F by ransac, extract the correct R,t & triangulate landmarks.
-[R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pdb, P, ...
+[R_CW, t3_CW, X, P, Pdb, t3norm] = estimateTrafoFund(Pdb, P, ...
                            K, t_norm_base, p('fund_num_iter'));  
-status = X(3,:) > 0; 
-X = X(:, status); 
-P = P(:, status); 
+X = [R_CW t3_CW; [0,0,0,1]]*X; 
+[X,P,discarded] = discard(X, P, p('discard_lm_max_dis'));
+Pdb = Pdb(:, discarded); 
 
 % Plotting. 
 %figure
-%plotMatches(P, Pdb, img1);
+%plotKPs(P, img1); 
 %plotPointCloud(X, P, img1); 
 
 % Assign initial state. 
 state = struct; 
 state.T = [R_CW t3_CW; [0,0,0,1]]; 
 state.P = P;
-state.X = X; 
-state.Xin = X;  
+state.X = inv([R_CW t3_CW; [0,0,0,1]])*X;  
 trajectory = [state];  %#ok<NBRAK>
 
 disp("Initial transformation: "); 
@@ -182,7 +181,7 @@ for i = 2:size(imgs_contop,3)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Either use P3P to track points or directly triangulate new landmarks.
     do_triangulate = false; 
-    if nnz(validity) >= p('p3p_min_num')
+    if nnz(validity) >= p('p3p_min_num') 
         % Find new camera pose with MATLAB's P3P function.
         image_points = fliplr(P');
         world_points = X(1:3,:)';
@@ -202,15 +201,15 @@ for i = 2:size(imgs_contop,3)
         elseif nnz(status)<p('reinit_min_num_inlier')
             do_triangulate = true; 
             fprintf('P3P bad status, '); 
-        %elseif abs(mean(P(2,:))-320)>32 || abs(mean(P(1,:))-240)>24
-        %    do_triangulate = true; 
-        %    fprintf('Landmarks badly distributed, '); 
-        %elseif abs(var(P(2,:)))<params('reinit_min_landmk_var') || ...
-        %       abs(var(P(1,:)))<params('reinit_min_landmk_var')
-        %   do_triangulate = true; 
-        %   fprintf('Landmarks badly distributed, '); 
+         %elseif abs(mean(P(2,:))-320)>300 || abs(mean(P(1,:))-240)>200
+         %   do_triangulate = true; 
+         %   fprintf('Landmarks badly distributed, '); 
+         %elseif abs(var(P(2,:)))<p('reinit_min_kp_var') || ...
+         %       abs(var(P(1,:)))<p('reinit_min_kp_var')
+         %   do_triangulate = true; 
+         %   fprintf('Landmarks badly distributed, '); 
         end
-    else
+    else 
         do_triangulate = true; 
         fprintf('Not enough KLT tracked points, '); 
     end
@@ -245,35 +244,31 @@ for i = 2:size(imgs_contop,3)
         % Find the norm of the transform from the last to the current
         % frame. Required for scaling the translation vector 
         % from estimateTrafoFund.
-        T_CcCp = [R_CW t3_CW; [0,0,0,1]]*inv(T_CW_db);
-     
+        T_CcCp = T_prev*inv(trajectory(end-shift-1).T);
+        t_norm_base = norm(T_CcCp(1:3,4)); 
+        
         % Triangulate new landmarks.
         % OBSERVATION: We have a problem here that there is noise in Z and Y
         % direction. Without it, the difference was exactly 0.5, as GT
         % suggests, but with GT the distance was 1.36. This is okay because
         % we triangulated a completely new pointcloud. But this will
         % inevitably lead to drift and errors in the long term.
-        [~,~,X_new,~] = estimateTrafoFund(Pdb_new, P_new, ...
-                        K, norm(T_CcCp(1:3,4)), p('fund_num_iter'));
-   
+        [R_CcCp,t3_CcCp,X_new,P_new,Pdb_new,~] = estimateTrafoFund(...
+                        Pdb_new, P_new, K,t_norm_base,p('fund_num_iter'));
+        T_CW  = [R_CcCp t3_CcCp;[0,0,0,1]]*T_CW_db;
+        R_CW  = T_CW(1:3,1:3);
+        t3_CW = T_CW(1:3,4);
         % Transform old keypoints in current camera frame and append new 
         % and old landmarks. 
-        X_old = T_CW_db*X;        
-        X_cand = [X_old X_new];
-        P_cand = [P P_new]; 
-        
-        % Discard landmarks that are very far away (as they most probably
-        % are created by triangulation depth errors), behind the camera 
-        % in an unreliable angle. 
-        status_close   = X_cand(3,:)<p('discard_lm_max_dis'); 
-        status_infront = X_cand(3,:)>0; 
-        status = status_close & status_infront; 
-        fprintf('... number of distance landmarks: %d\n', nnz(~status));        
-        % Use the T_CW of the previous frame to bring back the 
-        % pointcloud to the world frame. 
-        X = inv(T_CW_db)*X_cand(:, status);  
-        P = P_cand(:, status); 
-        status = true(size(X,2),1); 
+        %X_old = T_CW_db*X;        
+        %X_cand = [X_old X_new];
+        %P_cand = [P P_new]; 
+        %Pdb_cand = [Pdb Pdb_new]; 
+        % Discard candidates. 
+        %[X, P, discarded] = discard(X_cand, P_cand, p('discard_lm_max_dis'));
+        %Pdb = Pdb_cand(:,discarded); 
+        X = inv(T_CW_db)*X_new;
+        P = P_new; 
         fprintf('... number of new landmarks: %d\n', size(X,2));
     end
            
@@ -292,13 +287,13 @@ for i = 2:size(imgs_contop,3)
     state.T = [R_CW t3_CW; [0,0,0,1]];  
     state.P = P; 
     state.X = X; 
-    state.Xin = X(:,status); 
     trajectory = [trajectory; state]; %#ok<AGROW>
-    fprintf('Position: x=%f, y=%f, z=%f\n', ...
-            state.T(1,4), state.T(2,4), state.T(3,4));
+    T_WC = inv(state.T); 
+    fprintf('Position: x=%f, y=%f, z=%f\n',T_WC(1,4),T_WC(2,4),T_WC(3,4));
     % Plotting. 
     plotOverall(img, trajectory);
     %plotKPs(P, img); 
+    %plotMatches(P, Pdb, img, img); 
     pause(0.01);
 end
 

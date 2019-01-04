@@ -39,13 +39,13 @@ for i=1:n
     pos = T_WC*[0;0;0;1];
     positions = [positions;(pos(1:3))'];
 end
-
-
 % NOTE: We are interested in X-Z (topview).
 coord1 = 1; coord2 = 3; 
-plot(positions(:,coord1),positions(:,coord2),'-', 'Linewidth', 3); 
+h(1)=plot(positions(:,coord1),positions(:,coord2),'-', 'Linewidth', 3); 
 hold on; 
-plot((trajectory(end).Xin(coord1,:))',(trajectory(end).Xin(coord2,:))','*'); 
+h(2)=plot((trajectory(end).X(coord1,:))',(trajectory(end).X(coord2,:))','*'); 
+uistack(h(1),'top'); 
+hold off; 
 xlabel('X^W_1 = X');
 ylabel('X^W_2 = Z');
 axis equal; 
