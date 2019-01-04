@@ -8,7 +8,7 @@ end
 % and newly added features. 
 subplot(2,3,1);
 P  = trajectory(end).P; 
-plotMovingKPs(P, img); 
+plotKPs(P, img); 
 hold off; 
 title('Current Image (red=tracked)');
 
@@ -43,12 +43,13 @@ end
 
 % NOTE: We are interested in X-Z (topview).
 coord1 = 1; coord2 = 3; 
-plot(positions(:,coord1),positions(:,coord2)); 
+plot(positions(:,coord1),positions(:,coord2),'-', 'Linewidth', 3); 
 hold on; 
 plot((trajectory(end).Xin(coord1,:))',(trajectory(end).Xin(coord2,:))','*'); 
 xlabel('X^W_1 = X');
 ylabel('X^W_2 = Z');
-axis equal;
+axis equal; 
+end
 
 % NEW (3D plot with trajectory, landmarks and camera).
 % X_curr = trajectory(end).Xin;
@@ -79,4 +80,3 @@ axis equal;
 
 % Reset window position and size. 
 %set(gcf,'units','points','position',[100,100,600,400])
-end
