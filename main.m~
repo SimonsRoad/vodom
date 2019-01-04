@@ -127,17 +127,14 @@ Pdb = Pdb(:, discarded);
 
 % Plotting. 
 %figure
+%plotKPs(P, img1); 
 %plotPointCloud(X, P, img1); 
 
 % Assign initial state. 
 state = struct; 
 state.T = inv([R_CW t3_CW; [0,0,0,1]]); 
 state.P = P;
-state.P_cand = zeros(2,0);  
-state.discard = zeros(size(P,2),1); 
-state.discard_cand = zeros(0,1); 
-state.X = X;
-state.last_reinit = 0; 
+state.X = [R_CW t3_CW; [0,0,0,1]])*X;  
 trajectory = [state];  %#ok<NBRAK>
 
 disp("Initial transformation: "); 

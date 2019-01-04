@@ -5,15 +5,6 @@ function P = linearTriangulation(p1,p2,M1,M2)
 % @param[in]    M1(3,4): projection matrix corresponding to first image.
 % @param[in]    M2(3,4): projection matrix corresponding to second image.
 % @param[out]   P(4,N):  homogeneous coordinates of 3-D points.
-[dim,num_points] = size(p1);
-[dim2,npoints2] = size(p2);
-assert(dim==dim2);
-assert(num_points==npoints2);
-assert(dim==3);
-[rows,cols] = size(M1);
-assert(rows==3 && cols==4);
-[rows,cols] = size(M2);
-assert(rows==3 && cols==4);
 P = zeros(4,num_points);
 % Linear algorithm.
 for j=1:num_points
