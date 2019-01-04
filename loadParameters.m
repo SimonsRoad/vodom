@@ -1,22 +1,23 @@
 function parameters = loadParameters(ds)
 % Load parameters for each dataset (0: KITTI, 1: Malaga, 2: parking).
 parameters = containers.Map;  
+parameters('init_num_kps')         = 800;% #keypoints for initialization. 
+parameters('cont_num_kps')         = 500;% #keypoints for contop.
  
-parameters('r_desc')             = 9;    % pixel radius of patch descriptor. 
-parameters('match_ratio')        = 0.9;  % rejecting ambiguous matches. 
-                                         % Increase to return more matches.
-parameters('match_lambda')       = 80;   % Two feature vectors match when 
-                                         % their distance is less than
-                                         % value.
-                                         % Increase to return more matches.
-parameters('num_iter_fund')      = 1000; % max #iterations ransac for 
+parameters('harris_r')              = 9; % Harris Gaussian filter size. 
+parameters('harris_kappa')        = 0.08;% Harris kp extraction parameter. 
+parameters('harris_r_sup')          = 8; % radius of suppressing adj. kps. 
+parameters('harris_r_desc')         = 9; % pixel radius of patch descriptor. 
+parameters('match_lambda')          = 5; % matching threshold. 
+
+parameters('fund_num_iter')        = 500;% max #iterations ransac for 
                                          % fundamental matrix estimation. 
 
-parameters('klt_max_bierror')    = 100;  % max. bidirectional error for KLT.                        
+parameters('klt_max_bierror')       =inf;% max. bidirectional error for KLT.                        
                                          
-parameters('min_num_p3p')         = 10;  % min #point matches for p3p.                                          
-parameters('num_iter_p3p')        = 2000;% max #iterations ransac for p3p.                                      
-parameters('max_reproj_error_p3p') = 8;  % max reprojection error for p3p 
+parameters('p3p_min_num')           = 10;% min #point matches for p3p.                                          
+parameters('p3p_num_iter')        = 2000;% max #iterations ransac for p3p.                                      
+parameters('p3p_max_reproj_error')  = 8;% max reprojection error for p3p 
                                          % ransac trafo estimate. 
 
 parameters('reinit_min_num_landmk') = 40;% min #landmarks in contop.
