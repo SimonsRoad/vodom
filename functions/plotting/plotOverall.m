@@ -8,7 +8,7 @@ end
 % and newly added features. 
 subplot(2,3,1);
 P  = trajectory(end).P; 
-plotMovingKPs(P, img); 
+plotKPs(P, img); 
 hold off; 
 title('Current Image (red=tracked)');
 

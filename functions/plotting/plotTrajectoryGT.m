@@ -9,5 +9,7 @@ plot(p_W_E_algined(1,:), p_W_E_algined(2,:));
 plot(p_W_GT(1,:), p_W_GT(2,:)); 
 hold off; 
 legend('Trajectory', 'Trajectory aligned', 'Groundtruth'); 
+xlabel('X'); 
+ylabel('Z'); 
 axis equal; 
 end

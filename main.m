@@ -11,7 +11,7 @@ disp("vodom - Visual Odometry Pipeline")
 disp("Nikhilesh Alatur, Simon Schaefer")
 disp("################################")
 %% Choose and load dataset. 
-ds = 0; % 0: KITTI, 1: Malaga, 2: parking
+ds = 2; % 0: KITTI, 1: Malaga, 2: parking
 
 % Parameters. 
 params = loadParameters(ds); 
@@ -76,8 +76,8 @@ elseif ds == 1
     end
 elseif ds == 2
     last_frame = 549;
-    K = load([parking_path '/K.txt']);
-    ground_truth = load(['datasets/parking/poses.txt']);
+    K = load('datasets/parking/K.txt');
+    ground_truth = load('datasets/parking/poses.txt');
     ground_truth = ground_truth(:, [end-8 end]);
     % Load bootstrap images. 
     bootstrap_frames = params('bootstrap_frames'); 
@@ -111,25 +111,24 @@ disp("Starting bootstrapping initialization ...");
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Bootstrap Initialization %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-[P, Pdb] = harrisMatching(img1, img0, ...
-                          params('r_desciptor'), params('match_ratio')); 
+[P, Pdb] = harrisMatching(img1, img0, params('r_desc'), ...
+                          params('match_ratio'), params('match_lambda')); 
 fprintf('... number of matches: %d\n', size(P,2)); 
 
 % Use the ground truth to set the scale of this bootstrap transformation.
-t_norm_base = 1.0;  
+t_norm_base = 0.1294;  
 
 % Estimate the F by ransac, extract the correct R,t & triangulate landmarks.
 [R_CW, t3_CW, X, t3norm] = estimateTrafoFund(Pdb, P, ...
                            K, t_norm_base, params('num_iter_fund'));  
-
-% stereo_params = stereoParameters(K_matlab,K_matlab,R_CW,t3_CW); 
-% X = triangulate(Pdb', P', stereo_params); 
-% X = X'; 
+status = X(3,:) > 0; 
+X = X(:, status); 
+P = P(:, status); 
 
 % Plotting. 
-figure
+%figure
 %plotMatches(P, Pdb, img1);
-plotPointCloud(X(:,25), P(:,25), img1); 
+%plotPointCloud(X, P, img1); 
 
 % Assign initial state. 
 state = struct; 
@@ -184,20 +183,14 @@ for i = 2:size(imgs_contop,3)
     do_triangulate = false; 
     if nnz(validity) >= params('min_num_p3p')
         % Find new camera pose with MATLAB's P3P function.
-        image_points = fliplr(P');
-        world_points = X(1:3,:)';
         [world_orientation,world_location,status] = estimateWorldCameraPose(...
-            image_points, world_points, K_matlab,...
+            fliplr(P'), X(1:3,:)', K_matlab,...
             'MaxReprojectionError', params('max_reproj_error_p3p'), ...
             'MaxNumTrials', params('num_iter_p3p'));
         % Convert T_WC->T_CW.
-        R_WC = world_orientation;
-        t_WC = world_location';
-        T_WC = [R_WC,t_WC;[0,0,0,1]];
-        T_CW = inv(T_WC);
+        T_CW = inv([world_orientation,world_location';[0,0,0,1]]);
         R_CW = T_CW(1:3,1:3);
         t3_CW = T_CW(1:3,4);
-        assert(isequal(size([R_CW t3_CW]), [3,4])); 
         % Check whether it is necessary to triangulate new landmarks, 
         % after motion has been estimated.
         if size(X,2)<params('reinit_min_num_landmk')
@@ -215,7 +208,6 @@ for i = 2:size(imgs_contop,3)
         %   fprintf('Landmarks badly distributed, '); 
         end
     else
-        break
         do_triangulate = true; 
         fprintf('Not enough KLT tracked points, '); 
     end
@@ -224,7 +216,6 @@ for i = 2:size(imgs_contop,3)
     %%%% Re-Initialization %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Triangulate new landmarks if necessary. 
-    do_triangulate = false;  %HACK
     if do_triangulate
         fprintf('triangulating new landmarks...\n')
         % Find most distant database image with sufficient matches, i.e. 
@@ -233,12 +224,12 @@ for i = 2:size(imgs_contop,3)
         % is obtained. 
         do_research = true; 
         shift = min(params('reinit_max_base'),max(size(trajectory,1)-1));
-        shift = max(shift, 1); 
+        assert(shift ~= 0); 
         while do_research
             img_db  = imgs_contop(:,:,i-shift); 
             T_CW_db = trajectory(end-shift+1).T; 
-            [P_new, Pdb_new] = harrisMatching(img1, img0, ...
-                               params('r_desciptor'), params('match_ratio')); 
+            [P_new, Pdb_new] = harrisMatching(img1, img0, ... 
+                params('r_desc'),params('match_ratio'),params('match_lambda')); 
             fprintf('... number of matches: %d\n', size(P_new,2)); 
             % Check whether matches are sufficiently many. 
             if size(P_new,2) > params('reinit_min_num_landmk')||shift == 1
@@ -251,7 +242,6 @@ for i = 2:size(imgs_contop,3)
         % frame. Required for scaling the translation vector 
         % from estimateTrafoFund.
         T_CcCp = [R_CW t3_CW; [0,0,0,1]]*inv(T_CW_db);
-        t3_CcCp = T_CcCp(1:3,4);
      
         % Triangulate new landmarks.
         % OBSERVATION: We have a problem here that there is noise in Z and Y
@@ -259,8 +249,8 @@ for i = 2:size(imgs_contop,3)
         % suggests, but with GT the distance was 1.36. This is okay because
         % we triangulated a completely new pointcloud. But this will
         % inevitably lead to drift and errors in the long term.
-        [~,~,X_new,~] = estimateTrafoFund(Pdb_new, P_new, ...
-                        K, norm(t3_CcCp), params('num_iter_fund'));
+        [R_CW,t3_CW,X_new,~] = estimateTrafoFund(Pdb_new, P_new, ...
+                        K, norm(T_CcCp(1:3,4)), params('num_iter_fund'));
    
         % Transform old keypoints in current camera frame and append new 
         % and old landmarks. 
@@ -303,8 +293,8 @@ for i = 2:size(imgs_contop,3)
     fprintf('Position: x=%f, y=%f, z=%f\n', ...
             state.T(1,4), state.T(2,4), state.T(3,4));
     % Plotting. 
-    %plotOverall(img, trajectory);
-    plotKPs(P, img); 
+    plotOverall(img, trajectory);
+    %plotKPs(P, img); 
     pause(0.01);
 end
 

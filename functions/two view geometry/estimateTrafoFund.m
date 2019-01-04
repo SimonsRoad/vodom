@@ -22,7 +22,7 @@ if isnan(t3norm)
     t3 = t3/norm(t3);   
     t3norm = norm(t3); 
 else
-    t3 = (t3/norm(t3))*t3norm; % BUGFIX: We multiply it with t3norm, rather than dividing by it.
+    t3 = (t3/norm(t3))*t3norm; 
 end
 % Triangulate a point cloud using the final transformation (R,T). 
 M1 = K * eye(3,4);
