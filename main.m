@@ -278,9 +278,9 @@ for i = 2:size(imgs_contop,3)
     %%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     P_new = [];
     X_new = [];
-    if(~isempty(counter_cand))
+    if(false)%~isempty(counter_cand))
         for k=1:size(counter_cand,1)
-           if(counter_cand(k) < 10)
+           if(counter_cand(k) < 6 && counter_cand(k) >3 )
                % Only take candidates from last ten frames.
                
                % Tringulate 3D point.
