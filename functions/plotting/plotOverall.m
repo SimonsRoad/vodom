@@ -7,7 +7,7 @@ end
 % PLOT: Tracked Features - Add pixel markers for tracked 
 % and newly added features. 
 subplot(2,3,1);
-P  = trajectory(end).P; 
+P = trajectory(end).P; 
 plotKPs(P, img); 
 hold off; 
 title('Current Image (red=tracked)');

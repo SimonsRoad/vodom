@@ -1,9 +1,11 @@
-function plotMatches(q_kps, db_kps, q_img, db_img)
+function plotMatches(kps1, kps0, img1, img0)
 % Plot features matches in between two images. 
-% @param[in]    qm_keypoints    matched query keypoints [2,L]. 
-% @param[in]    dbm_keypoints   matched database keypoints [2,L]. 
-% @param[in]    q_img           query image. 
-% @param[in]    db_img          database image. 
-showMatchedFeatures(db_img, q_img, fliplr(db_kps'), fliplr(q_kps'));
+% @param[in]    kps1    matched query keypoints [2,L]. 
+% @param[in]    kps0    matched database keypoints [2,L]. 
+% @param[in]    img1 	query image. 
+% @param[in]    img0    database image. 
+kps0 = flipud(kps0);
+kps1 = flipud(kps1);
+showMatchedFeatures(img0, img1, fliplr(kps0'), fliplr(kps1'));
 end
 

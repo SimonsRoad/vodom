@@ -9,7 +9,7 @@ Ixx = double(Ix .^ 2);
 Iyy = double(Iy .^ 2);
 Ixy = double(Ix .* Iy);
 
-patch = ones(patch_size, patch_size);
+patch = ones(patch_size, patch_size) / (patch_size ^ 2);
 pr = floor(patch_size / 2);  % patch radius
 sIxx = conv2(Ixx, patch, 'valid');
 sIyy = conv2(Iyy, patch, 'valid');
