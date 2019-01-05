@@ -271,38 +271,36 @@ for i = 2:size(imgs_contop,3)
     %%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     P_new = [];
     X_new = [];
-%     if(~isempty(counter_cand))
-%         for k=1:size(counter_cand,2)
-%            if(counter_cand(1,k) < 10)
-%                % Only take candidates from last ten frames.
-%                
-%                % Tringulate 3D point.
-%                  T_cand_loop = reshape(trajectory(i-counter_cand(1,k)-1).T_cand_orig,[4,4]); % CORRECT SHIFT?
-%                  T_CW_old_cand = inv(T_cand_loop);
-%                  M1_loop = K*T_CW_old_cand(1:3,:);
-%                  T_CW = inv(T);
-%                  M2_loop = K*T_CW(1:3,:);
-%                  p1_loop = [P_cand_orig(:,k);1];
-%                  p2_loop = [P_cand(:,k);1];
-%                  LM_triang = linearTriangulation(p1_loop,p2_loop,M1_loop,M2_loop);
-%                  LM_triang = P_triang(1:3);
-%                % Do Sanity Check (in front of camera, reproj error
-%                % small)and add landmarks with keypoint location in current
-%                % image.
-%                if(LM_triang(3)>0)
-%                    P_new = [P_new,P_cand(:,k)];
-%                    X_new = [X_new,T_cand_loop*[LM_triang;1]];
-%                    % Also remove it from candidates.
-%                    P_cand(:,k) = [];
-%                    P_cand_orig(:,k) = [];
-%                    counter_cand(1,k) = [];
-%                    
-%                end
-%                
-%            end
-%         end
-%         
-%     end
+    if(~isempty(counter_cand))
+        for k=1:size(counter_cand,1)
+           if(counter_cand(k) < 10)
+               % Only take candidates from last ten frames.
+               
+               % Tringulate 3D point.
+                 T_WC_cand_orig_loop = reshape(T_cand_orig(:,k),[4,4]);
+                 T_CW_cand_orig_loop = inv(T_WC_cand_orig_loop);
+                 M1_loop = K*T_CW_cand_orig_loop(1:3,:);
+                 T_CW = inv(T);
+                 M2_loop = K*T_CW(1:3,:);
+                 p1_loop = [P_cand_orig(:,k);1];
+                 p2_loop = [P_cand(:,k);1];
+                 LM_triang = linearTriangulation(p1_loop,p2_loop,M1_loop,M2_loop);
+                 LM_triang = LM_triang(1:3)
+               % Do Sanity Check (in front of camera, reproj error
+               % small)and add landmarks with keypoint location in current
+               % image.
+               if(LM_triang(3)>0)
+                   P_new = [P_new,P_cand(:,k)];
+                   X_new = [X_new,T_WC_cand_orig_loop*[LM_triang;1]];
+                   % Also remove it from candidates.
+                   counter_cand(k) = inf;
+                   
+               end
+               
+           end
+        end
+        
+    end
      
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
