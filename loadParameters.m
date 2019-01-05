@@ -53,7 +53,7 @@ parameters('counter_cand_max')      = 10;   % maximal counter value to keep cand
 %%%% Parking %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 elseif ds == 2
-parameters('bootstrap_frames')      = [1 3];
+parameters('bootstrap_frames')      = [10 13];
 parameters('init_num_kps')          = 200;  % #keypoints for initialization. 
 parameters('cont_num_kps')          = 200;  % #keypoints for candidate search in contop.
 parameters('reinit_min_kps')        = 30;   % below #keypoints reinitialize.  
