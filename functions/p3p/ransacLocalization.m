@@ -84,5 +84,6 @@ else
 end
 T_WC = inv([R_CW, t_CW; 0 0 0 1]); 
 counter(~best_inlier_mask) = inf; 
+fprintf('... number of p3p inliers: %d\n', max_num_inliers);
 end
 

@@ -6,42 +6,52 @@ if n < 2
 end
 % PLOT: Tracked Features - Add pixel markers for tracked 
 % and newly added features. 
-subplot(2,3,1);
+subplot(2,3,[1,2,3]);
+imshow(img); 
+hold on;
 P = trajectory(end).P; 
-plotKPs(P, img); 
+kps = flipud(P); 
+plot((kps(2, :))', (kps(1, :))', 'rx');
+P_cand = trajectory(end).P_cand; 
+kps = flipud(P_cand); 
+plot((kps(2, :))', (kps(1, :))', 'go'); 
 hold off; 
-title('Current Image (red=tracked)');
+legend('valid', 'candidates'); 
 
 % PLOT: Tracked Keypoints
 subplot(2,3,4);
-num_keypoints = zeros(1,n); 
+num_valid = zeros(1,n); 
+num_candi = zeros(1,n); 
 num_hist_kps = 50; 
 for i = 1:n
-    num_keypoints(i) = size(trajectory(i).P, 2); 
+    num_valid(i) = size(trajectory(i).P, 2); 
+    num_candi(i) = size(trajectory(i).P_cand, 2); 
 end
 if n > num_hist_kps
-    plot(n-num_hist_kps:n, num_keypoints(end-num_hist_kps:end)); 
+    plot(n-num_hist_kps:n, num_valid(end-num_hist_kps:end)); 
+    hold on; 
+    plot(n-num_hist_kps:n, num_candi(end-num_hist_kps:end)); 
 else
-    plot(1:n, num_keypoints);
+    plot(1:n, num_valid);
+    hold on; 
+    plot(1:n, num_candi); 
 end
 xlabel('Frame index');
 ylabel('# tracked keypoints');
-axis([n-num_hist_kps n 0 400])
+axis([n-num_hist_kps n 0 400]); 
+legend('valid', 'candidates'); 
 title('# prev. tracked keypoints')
 
 % PLOT: Trajectory, Camera and landmarks 
-subplot(2,3,[2,3,5,6]);
+subplot(2,3,[5,6]);
 
 positions = [];
 for i=1:n
-    T_CW = trajectory(i).T;
-    T_WC = inv(T_CW);
-    pos = T_WC*[0;0;0;1];
-    positions = [positions;(pos(1:3))'];
+    positions = [positions;(trajectory(i).T(1:3,4))'];
 end
 % NOTE: We are interested in X-Z (topview).
 coord1 = 1; coord2 = 3; 
-h(1)=plot(positions(:,coord1),positions(:,coord2),'-', 'Linewidth', 3); 
+h(1)=plot(positions(:,coord1),positions(:,coord2),'-', 'Linewidth', 2); 
 hold on; 
 h(2)=plot((trajectory(end).X(coord1,:))',(trajectory(end).X(coord2,:))','*'); 
 uistack(h(1),'top'); 

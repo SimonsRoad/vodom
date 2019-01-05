@@ -209,7 +209,7 @@ for i = 2:size(imgs_contop,3)
     if sum(counter == 0) < p('reinit_min_kps')
         do_reinit = true; 
         fprintf('Number of keypoints below threshold, reinitializing ...\n');
-    elseif last_reinit_prev > 10
+    elseif last_reinit_prev > p('reinit_counter') 
         do_reinit = true; 
         fprintf('ReInit counter large, reinitializing ...\n');
     end

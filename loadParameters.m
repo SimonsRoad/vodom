@@ -19,6 +19,7 @@ parameters('bootstrap_frames')      = [1 3];
 parameters('init_num_kps')          = 1000; % #keypoints for initialization. 
 parameters('cont_num_kps')          = 200;  % #keypoints for candidate search in contop.
 parameters('reinit_min_kps')        = 30;   % below #keypoints reinitialize.  
+parameters('reinit_counter')        = 10;   % maximal frames without reinit due to scale drift. 
 
 parameters('klt_max_bierror')       = inf;  % max. bidirectional error for KLT.                        
                                          
@@ -38,6 +39,7 @@ parameters('bootstrap_frames')      = [1 3];
 parameters('init_num_kps')          = 800;  % #keypoints for initialization. 
 parameters('cont_num_kps')          = 200;  % #keypoints for candidate search in contop.
 parameters('reinit_min_kps')        = 30;   % below #keypoints reinitialize.  
+parameters('reinit_counter')        = 10;   % maximal frames without reinit due to scale drift. 
 
 parameters('klt_max_bierror')       = inf;  % max. bidirectional error for KLT.                        
                                          
@@ -57,7 +59,8 @@ parameters('bootstrap_frames')      = [10 13];
 parameters('init_num_kps')          = 200;  % #keypoints for initialization. 
 parameters('cont_num_kps')          = 200;  % #keypoints for candidate search in contop.
 parameters('reinit_min_kps')        = 30;   % below #keypoints reinitialize.  
- 
+parameters('reinit_counter')        = 10;   % maximal frames without reinit due to scale drift. 
+
 parameters('klt_max_bierror')       = inf;  % max. bidirectional error for KLT.                        
                                          
 parameters('p3p_min_num')           = 6;    % minimal # of RANSAC inliers to be valid pose estimate.                               
