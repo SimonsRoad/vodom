@@ -188,8 +188,10 @@ for i = 2:size(imgs_contop,3)
     P_cand_orig = P_cand_orig_prev; 
     T_cand_orig = T_cand_orig_prev; 
     if size(P_cand_prev,2) > 0
-        initialize(point_tracker, P_cand_prev', img_prev);
-        [points,validity] = point_tracker(img);
+        point_tracker_cand = vision.PointTracker(...
+        'MaxBidirectionalError', p('klt_max_bierror'));
+        initialize(point_tracker_cand, P_cand_prev', img_prev);
+        [points,validity] = point_tracker_cand(img);    % Bugfix
         discard_cand(~validity) = inf; 
         P_cand = points'; 
         fprintf('KLT number of tracked candidates: %d\n', nnz(validity));
@@ -262,7 +264,7 @@ for i = 2:size(imgs_contop,3)
                % Only take candidates from last ten frames.
                
                % Tringulate 3D point.
-                 T_cand_loop = reshape(trajectory{i-discard_cand(1,k)}.T_cand_orig,[4,4]); % CORRECT SHIFT?
+                 T_cand_loop = reshape(trajectory(i-discard_cand(1,k)-1).T_cand_orig,[4,4]); % CORRECT SHIFT?
                  T_CW_old_cand = inv(T_cand_loop);
                  M1_loop = K*T_CW_old_cand(1:3,:);
                  T_CW = inv(T);
