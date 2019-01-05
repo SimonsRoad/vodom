@@ -145,8 +145,8 @@ state.last_reinit  = 0;
 trajectory = [state];  %#ok<NBRAK>
 
 % Plotting. 
-figure
-plotPointCloud(X, P, img1); 
+%figure
+%plotPointCloud(X, P, img1); 
 
 disp("Initial transformation: "); 
 disp([R_CW t3_CW]); 
@@ -170,7 +170,7 @@ for i = 2:size(imgs_contop,3)
     counter_cand     = state_prev.counter_cand; 
     X_prev           = state_prev.X; 
     last_reinit_prev = state.last_reinit; 
-
+    
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%% KLT %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -182,7 +182,7 @@ for i = 2:size(imgs_contop,3)
     [points,validity] = point_tracker(img);
     counter(~validity) = inf; 
     P = points'; 
-    fprintf('KLT number of tracked keypoints: %d\n', nnz(validity));
+    fprintf('... number of tracked keypoints: %d\n', nnz(validity));
     % Track candidates using Matlab KLT algorithm. 
     P_cand = P_cand_prev; 
     P_cand_orig = P_cand_orig_prev; 
@@ -194,14 +194,14 @@ for i = 2:size(imgs_contop,3)
         [points,validity] = point_tracker_cand(img);    % Bugfix
         counter_cand(~validity) = inf; 
         P_cand = points'; 
-        fprintf('KLT number of tracked candidates: %d\n', nnz(validity));
+        fprintf('... number of tracked candidates: %d\n', nnz(validity));
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%% P3P %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    [T,counter] = ransacLocalization(P,X,counter, K, ...
+    [T,counter] = ransacLocalization(P, X_prev, counter, K, ...
                   p('p3p_min_num'), p('p3p_num_iter'), p('p3p_max_error'));
-    
+                
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%% Re-Initialization %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -225,6 +225,13 @@ for i = 2:size(imgs_contop,3)
         [R_CW, t3_CW, X, P] = estimateTrafoFund(Pdb, P, ...
                               K, p('fund_num_iter'), p('fund_max_error'));
         T = T_prev*inv([R_CW t3_CW; [0,0,0,1]]);
+        
+        % Reset candidates and counters. 
+        P_cand       = zeros(2,0);
+        P_cand_orig  = zeros(2,0); 
+        T_cand_orig  = zeros(16,0); 
+        counter      = zeros(size(P,2),1); 
+        counter_cand = zeros(0,1);
         
         % Look for new candidates. 
         P_cand_new = selectKeypoints(...
@@ -285,7 +292,7 @@ for i = 2:size(imgs_contop,3)
                  p1_loop = [P_cand_orig(:,k);1];
                  p2_loop = [P_cand(:,k);1];
                  LM_triang = linearTriangulation(p1_loop,p2_loop,M1_loop,M2_loop);
-                 LM_triang = LM_triang(1:3)
+                 LM_triang = LM_triang(1:3);
                % Do Sanity Check (in front of camera, reproj error
                % small)and add landmarks with keypoint location in current
                % image.
@@ -301,8 +308,7 @@ for i = 2:size(imgs_contop,3)
         end
         
     end
-     
-    
+
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%% New Candidates Search %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -321,11 +327,11 @@ for i = 2:size(imgs_contop,3)
     %%%% Post-Processing %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     [P,P_cand,P_cand_orig,T_cand_orig,X,counter,counter_cand] = ...
-        postProcessing(P, P_cand, P_cand_orig, T_cand_orig, X, ...
+        postProcessing(P, P_cand, P_cand_orig, T_cand_orig, X_prev, ...
         counter, counter_cand, p('counter_max'), p('counter_cand_max'));
     last_reinit = last_reinit_prev + 1; 
     fprintf('... number of valid correspondences: %d\n', size(P,2));
-        
+
     % Renew state and add to trajectory.
     state              = struct; 
     state.T            = T;  
@@ -338,7 +344,7 @@ for i = 2:size(imgs_contop,3)
     state.X            = [X X_new]; 
     state.last_reinit  = last_reinit; 
     trajectory = [trajectory; state]; %#ok<AGROW>
-    
+     
 	% Plotting. 
     plotOverall(img, trajectory);
     %plotKPs(P, img); 
