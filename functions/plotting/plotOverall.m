@@ -47,14 +47,17 @@ subplot(2,3,[5,6]);
 
 positions = [];
 for i=1:n
-    positions = [positions;(trajectory(i).T(1:3,4))'];
+    positions = [positions;trajectory(i).T(1:3,4)'];
 end
 % NOTE: We are interested in X-Z (topview).
 coord1 = 1; coord2 = 3; 
 h(1)=plot(positions(:,coord1),positions(:,coord2),'-', 'Linewidth', 2); 
 hold on; 
-h(2)=plot((trajectory(end).X(coord1,:))',(trajectory(end).X(coord2,:))','*'); 
-uistack(h(1),'top'); 
+X_draw = trajectory(end).X; 
+if size(X_draw,2) > 0
+    h(2)=plot(X_draw(coord1,:)',X_draw(coord2,:)','*'); 
+    uistack(h(1),'top'); 
+end
 hold off; 
 xlabel('X^W_1 = X');
 ylabel('X^W_2 = Z');

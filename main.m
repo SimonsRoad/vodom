@@ -11,7 +11,7 @@ disp("vodom - Visual Odometry Pipeline")
 disp("Nikhilesh Alatur, Simon Schaefer")
 disp("################################")
 %% Choose and load dataset. 
-ds = 0; % 0: KITTI, 1: Malaga, 2: parking
+ds = 1; % 0: KITTI, 1: Malaga, 2: parking, 3: ETH April, 4: ETH Long
 
 % Parameters. 
 p = loadParameters(ds); 
@@ -24,7 +24,7 @@ disp("Loading dataset images ...");
 if ds == 0
     ground_truth = load(['datasets/kitti/' '/poses/00.txt']);
     ground_truth = ground_truth(:, [end-8 end]);
-    last_frame = 454; %0;   
+    last_frame = 1000; %4540;   
     K = [7.188560000000e+02 0 6.071928000000e+02
         0 7.188560000000e+02 1.852157000000e+02
         0 0 1];
@@ -64,8 +64,8 @@ elseif ds == 1
         left_images(bootstrap_frames(2)).name]));
     imgs_bootstrap = [img0; img1]; 
     % Load continous operation images. 
-    imgs_contop = zeros(size(img0,1), size(img0,2), ...
-                        last_frame-bootstrap_frames(2)); 
+    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), ...
+                        last_frame-bootstrap_frames(2))); 
     k = 1; 
     for i = (bootstrap_frames(2)+1):last_frame
         img = rgb2gray(imread(['datasets/malaga/' ...
@@ -75,7 +75,7 @@ elseif ds == 1
         k = k + 1; 
     end
 elseif ds == 2
-    last_frame = 549;
+    last_frame = 249; 
     K = load('datasets/parking/K.txt');
     ground_truth = load('datasets/parking/poses.txt');
     ground_truth = ground_truth(:, [end-8 end]);
@@ -98,6 +98,50 @@ elseif ds == 2
     end
     % Adapt ground truth to initialization. 
     ground_truth = ground_truth(bootstrap_frames(2)+1:last_frame, :);
+elseif ds == 3
+    last_frame = 331; 
+    K = load('datasets/eth_april/K.txt');
+    ground_truth = load('datasets/eth_april/poses.txt');
+    % Load bootstrap images. 
+    bootstrap_frames = p('bootstrap_frames'); 
+    img0 = imread(['datasets/eth_april/' ...
+        sprintf('/frames/%d.png',bootstrap_frames(1))]);
+    img1 = imread(['datasets/eth_april/' ...
+        sprintf('/frames/%d.png',bootstrap_frames(2))]);
+    imgs_bootstrap = [img0; img1]; 
+    % Load continous operation images. 
+    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), ...
+                        last_frame-bootstrap_frames(2))); 
+    k = 1; 
+    for i = (bootstrap_frames(2)+1):last_frame    
+        img = im2uint8(imread(['datasets/eth_april/' ...
+            sprintf('/frames/%d.png',i)]));
+        imgs_contop(:,:,k) = img; 
+        k = k + 1; 
+    end
+    % Adapt ground truth to initialization. 
+    ground_truth = ground_truth(bootstrap_frames(2)+1:last_frame, :);    
+elseif ds == 4
+    last_frame = 900; 
+    K = load('datasets/eth_long/K.txt');
+    % Load bootstrap images. 
+    bootstrap_frames = p('bootstrap_frames'); 
+    img0 = imread(['datasets/eth_long/' ...
+        sprintf('/frames/%d.png',bootstrap_frames(1))]);
+    img1 = imread(['datasets/eth_long/' ...
+        sprintf('/frames/%d.png',bootstrap_frames(2))]);
+    imgs_bootstrap = [img0; img1]; 
+    % Load continous operation images. 
+    imgs_contop = uint8(zeros(size(img0,1), size(img0,2), ...
+                        last_frame-bootstrap_frames(2))); 
+    k = 1; 
+    for i = (bootstrap_frames(2)+1):last_frame    
+        img = im2uint8(imread(['datasets/eth_long/' ...
+            sprintf('/frames/%d.png',i)]));
+        imgs_contop(:,:,k) = img; 
+        k = k + 1; 
+    end  
+    
 else
     assert(false);
 end
@@ -238,7 +282,7 @@ for i = 2:size(imgs_contop,3)
                      harris(img, p('harris_r'), p('harris_kappa')), ...
                      p('cont_num_kps'), p('harris_r_sup'));
         P_cand_new = flipud(P_cand_new); 
-        P_current  = [P(:,counter == 0) P_new P_cand(:,counter_cand == 0)];
+        P_current  = [P(:,counter == 0) P_cand(:,counter_cand == 0)];
         P_cand_new = P_cand_new(:, ...
             min(pdist2(P_cand_new',P_current'),[],2) > p('search_min_dis'));
         P_cand_orig_new = P_cand_new; 
@@ -358,6 +402,8 @@ end
 %% Post Bundle-Adjustment.
 if isnan(ground_truth)
     disp("No groud_truth available !");
+    figure(3)
+    plotTrajectory(trajectory); 
 else
     disp("Compare trajectory to ground_truth ..."); 
     num_points = size(trajectory,1); 
@@ -368,7 +414,7 @@ else
         p_W_E(:,i) = [trajectory(i).T(1,4); trajectory(i).T(3,4); 0.0];
     end
     % Align groundtruth and estimate to resolve scale and rotational errors. 
-    p_W_E_aligned = alignEstimateToGroundTruth(p_W_GT, p_W_E); 
+    p_W_E_aligned = alignEstimateToGroundTruth(p_W_GT, p_W_E);
     % Plot groundtruth vs aligned trajectory. 
     figure(3)
     plotTrajectoryGT(p_W_E, p_W_E_aligned, p_W_GT); 

@@ -6,7 +6,13 @@ counter(X(3,:) < 0) = inf;
 % Increment non-selected as keypoint candidates counter.
 counter_cand = counter_cand + 1; 
 % Delete correspondences and candidates with too large counter. 
-keep = counter <= max_counter; 
+keep = counter <= max_counter;  
+if sum(keep) < 10
+    m = length(keep); 
+    rand_idx = datasample(1:m, min(10, m), 'Replace', false);
+    keep(rand_idx) = true; 
+    fprintf('ERROR: TOO FEW VALID CORRESPONENCES TO REMOVE!\n');
+end
 P = P(:, keep); 
 X = X(:, keep); 
 counter = counter(keep); 
