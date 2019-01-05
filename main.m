@@ -278,9 +278,9 @@ for i = 2:size(imgs_contop,3)
     %%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     P_new = [];
     X_new = [];
-    if(false)%~isempty(counter_cand))
+    if (~isempty(counter_cand))
         for k=1:size(counter_cand,1)
-           if(counter_cand(k) < 6 && counter_cand(k) >3 )
+           if(counter_cand(k) < 50 &&counter_cand(k) >3 )
                % Only take candidates from last ten frames.
                
                % Tringulate 3D point.
@@ -292,13 +292,13 @@ for i = 2:size(imgs_contop,3)
                  p1_loop = [P_cand_orig(:,k);1];
                  p2_loop = [P_cand(:,k);1];
                  LM_triang = linearTriangulation(p1_loop,p2_loop,M1_loop,M2_loop);
-                 LM_triang = LM_triang(1:3);
+                 LM_triang = T_CW_cand_orig_loop*LM_triang;
                % Do Sanity Check (in front of camera, reproj error
                % small)and add landmarks with keypoint location in current
                % image.
                if(LM_triang(3)>0)
                    P_new = [P_new,P_cand(:,k)];
-                   X_new = [X_new,T_WC_cand_orig_loop*[LM_triang;1]];
+                   X_new = [X_new,T_WC_cand_orig_loop*LM_triang];
                    % Also remove it from candidates.
                    counter_cand(k) = inf;
                    
