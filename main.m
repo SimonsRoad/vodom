@@ -280,7 +280,7 @@ for i = 2:size(imgs_contop,3)
     X_new = [];
     if (~isempty(counter_cand))
         for k=1:size(counter_cand,1)
-           if(counter_cand(k) < 50 &&counter_cand(k) >3 )
+           if(counter_cand(k)<50&&counter_cand(k)>p('select_min_counter'))
                % Only take candidates from last ten frames.
                
                % Tringulate 3D point.
