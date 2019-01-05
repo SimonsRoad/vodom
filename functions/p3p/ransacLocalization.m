@@ -1,18 +1,18 @@
-function [T_WC, discard] = ransacLocalization(P, X, discard,... 
+function [T_WC, counter] = ransacLocalization(P, X, counter,... 
                            K, min_num_inliers, num_iter, pixel_tolerance)
 % RANSAC-supported P3P localization algorithm based on given
 % 2D-3D-correspondences. 
 % @param[in]    P               image keypoints [2,L]. 
 % @param[in]    X               corresponding landmarks [3,L]. 
 % @param[in]    K               camera intrinsics matrix [3,3].
-% @param[in]    discard         discard counter array for each corresp.. 
+% @param[in]    counter         counter counter array for each corresp.. 
 % @param[in]    min_num_inlier  minimal number of RANSAC inliers. 
 % @param[in]    num_iter        #RANSAC iterations. 
 % @param[in]    pixel_tolerance max. reprojection error to be inlier.
 
 % Merely take most current tracked 2D-3D-correspondences. 
-P = P(:, discard==0); 
-X = X(1:3, discard==0); 
+P = P(:, counter==0); 
+X = X(1:3, counter==0); 
 % Initialize RANSAC.
 best_inlier_mask = zeros(1, size(P, 2));
 max_num_inliers = 0;
@@ -82,7 +82,7 @@ else
 	R_CW = best_R;
     t_CW = best_t;
 end
-T_WC = inv([R_CW, t_CW; zeros(1,4)]); 
-discard(~best_inlier_mask) = inf; 
+T_WC = inv([R_CW, t_CW; 0 0 0 1]); 
+counter(~best_inlier_mask) = inf; 
 end
 

@@ -1,5 +1,5 @@
 function [R, t3, X, P] = estimateTrafoFund(P0, P1, K, ...
-                                                num_iter, max_error)
+                                           num_iter, max_error)
 % Estimate transformation between previous and current image using 
 % fundamental matrix estimate and RANSAC. 
 % @param[in]    P0              matched camera 0 keypoints [2,L]. 
@@ -26,8 +26,8 @@ for i = 1:num_iter
     epil0 = F.'*p1; 
     epil1 = F*p0; 
     epils = [epil0, epil1]; 
-    errors = sum(epils.*[p0, p1],1).^2./(epils(1,:).^2 + epils(2,:).^2); 
-    errors = sqrt(errors(1:num_points_0)+errors(num_points_0+1:end));
+    errors = (sum(epils.*[p0, p1],1).^2)./(epils(1,:).^2 + epils(2,:).^2); 
+    errors = sqrt(errors(1:num_points_1)+errors(num_points_1+1:end));
     % Determine inliers. 
     is = errors < max_error^2; 
     if nnz(is) > max_num_inliers

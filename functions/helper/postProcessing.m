@@ -1,18 +1,18 @@
-function [P,P_cand,P_cand_orig,T_cand_orig,X,discard,discard_cand] = ...
+function [P,P_cand,P_cand_orig,T_cand_orig,X,counter,counter_cand] = ...
     postProcessing(P, P_cand, P_cand_orig, T_cand_orig, X, ...
-    discard, discard_cand, max_discard, max_cand_discard)
+    counter, counter_cand, max_counter, max_cand_counter)
 % Discard landmarks that are behind the camera as they are surely outliers.
-discard(X(3,:) < 0) = inf; 
+counter(X(3,:) < 0) = inf; 
 % Increment non-selected as keypoint candidates counter.
-discard_cand = discard_cand + 1; 
+counter_cand = counter_cand + 1; 
 % Delete correspondences and candidates with too large counter. 
-keep = discard <= max_discard; 
+keep = counter <= max_counter; 
 P = P(:, keep); 
 X = X(:, keep); 
-discard = discard(keep); 
-keep = discard_cand <= max_cand_discard; 
+counter = counter(keep); 
+keep = counter_cand <= max_cand_counter; 
 P_cand = P_cand(:, keep); 
 P_cand_orig = P_cand_orig(:, keep); 
 T_cand_orig = T_cand_orig(:, keep); 
-discard_cand = discard_cand(keep); 
+counter_cand = counter_cand(keep); 
 end

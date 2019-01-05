@@ -28,8 +28,8 @@ parameters('p3p_max_error')         = 5;    % max reprojection error to be p3p r
 
 parameters('search_min_dis')        = 10;   % minimal distance from new kp candidates to existing kps. 
 
-parameters('discard_max')           = 10;   % maximal counter value to keep correspondence. 
-parameters('discard_cand_max')      = 10;   % maximal counter value to keep candidate. 
+parameters('counter_max')           = 10;   % maximal counter value to keep correspondence. 
+parameters('counter_cand_max')      = 10;   % maximal counter value to keep candidate. 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Malaga %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -47,8 +47,8 @@ parameters('p3p_max_error')         = 5;    % max reprojection error to be p3p r
 
 parameters('search_min_dis')        = 10;   % minimal distance from new kp candidates to existing kps.
 
-parameters('discard_max')           = 10;   % maximal counter value to keep correspondence. 
-parameters('discard_cand_max')      = 10;   % maximal counter value to keep candidate. 
+parameters('counter_max')           = 10;   % maximal counter value to keep correspondence. 
+parameters('counter_cand_max')      = 10;   % maximal counter value to keep candidate. 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Parking %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -66,8 +66,8 @@ parameters('p3p_max_error')         = 5;    % max reprojection error to be p3p r
 
 parameters('search_min_dis')        = 10;   % minimal distance from new kp candidates to existing kps. 
 
-parameters('discard_max')           = 10;   % maximal counter value to keep correspondence. 
-parameters('discard_cand_max')      = 10;   % maximal counter value to keep candidate. 
+parameters('counter_max')           = 10;   % maximal counter value to keep correspondence. 
+parameters('counter_cand_max')      = 10;   % maximal counter value to keep candidate. 
 else 
     assert(false)
 end

@@ -208,14 +208,14 @@ for i = 2:size(imgs_contop,3)
     do_reinit = false; 
     if sum(counter == 0) < p('reinit_min_kps')
         do_reinit = true; 
-        fprintf('Number of keypoints below threshold, reinitializing ...\n');
+        fprintf('# Keypoints below threshold, reinitializing ...');
     elseif last_reinit_prev > 10
         do_reinit = true; 
-        fprintf('ReInit counter large, reinitializing ...\n');
+        fprintf('Reinit cou, reinitializing ...');
     end
     if do_reinit
-        % Feature matching using Harris corner detectionn 
-        [P, Pdb] = harrisMatching(img, img_prev, ...
+        % Feature matching using Harris corner detection. 
+        [P, Pdb] = harrisMatching(img1, img0, ...
                    p('init_num_kps'),p('harris_r'),p('harris_kappa'),...
                    p('harris_r_sup'),p('harris_r_desc'),p('match_lambda'));
         fprintf('... number of matches: %d\n', size(P,2)); 
@@ -235,14 +235,12 @@ for i = 2:size(imgs_contop,3)
         P_cand_new = P_cand_new(:, ...
             min(pdist2(P_cand_new',P_current'),[],2) > p('search_min_dis'));
         P_cand_orig_new = P_cand_new; 
-        T_cand_orig_new = repmat(T(:), 1, size(P_cand_new,2));
-        fprintf('... number of new candidates: %d\n', size(P_cand_new,2)); 
+        T_cand_orig_new = repmat(T(:), 1, size(P_cand_new,2)); 
 
         % Post Processing. 
         [P,P_cand,P_cand_orig,T_cand_orig,X,counter,counter_cand] = ...
             postProcessing(P, P_cand, P_cand_orig, T_cand_orig, X, ...
             counter, counter_cand, p('counter_max'), p('counter_cand_max'));
-        fprintf('... number of valid correspondences: %d\n', size(P,2));
         
         % Renew state and add to trajectory.
         state = struct; 
@@ -256,14 +254,6 @@ for i = 2:size(imgs_contop,3)
         state.X            = T_prev*X;
         state.last_reinit  = 0; 
         trajectory = [trajectory; state];   %#ok<AGROW>
-        
-        % Plotting. 
-        plotOverall(img, trajectory);
-        %plotKPs(P, img); 
-        %plotMatches(P, Pdb, img, img);
-
-        fprintf('Position: x=%f, y=%f, z=%f\n', ...
-                state.T(1,4),state.T(2,4),state.T(3,4));
         continue; 
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -316,8 +306,7 @@ for i = 2:size(imgs_contop,3)
     P_cand_new = P_cand_new(:, ...
         min(pdist2(P_cand_new',P_current'),[],2) > p('search_min_dis'));
     P_cand_orig_new = P_cand_new; 
-    T_cand_orig_new = repmat(T(:), 1, size(P_cand_new,2));
-    fprintf('... number of new candidates: %d\n', size(P_cand_new,2));
+    T_cand_orig_new = repmat(T(:), 1, size(P_cand_new,2)); 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%% Post-Processing %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -326,7 +315,6 @@ for i = 2:size(imgs_contop,3)
         postProcessing(P, P_cand, P_cand_orig, T_cand_orig, X, ...
         counter, counter_cand, p('counter_max'), p('counter_cand_max'));
     last_reinit = last_reinit_prev + 1; 
-    fprintf('... number of valid correspondences: %d\n', size(P,2));
         
     % Renew state and add to trajectory.
     state              = struct; 
