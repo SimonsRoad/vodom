@@ -120,29 +120,37 @@ fprintf('... number of matches: %d\n', size(P,2));
 % as triangulated point cloud. 
 [R_CW, t3_CW, X, P] = estimateTrafoFund(Pdb, P, ...
                       K, p('fund_num_iter'), p('fund_max_error'));
-
-% Discard point cloud. 
-[X,P,discarded] = discard(X, P, p('discard_lm_max_dis'));
-Pdb = Pdb(:, discarded); 
-
-% Plotting. 
-%figure
-%plotPointCloud(X, P, img1); 
+                  
+% Post Processing. 
+P_cand       = zeros(2,0);
+P_cand_orig  = zeros(2,0); 
+T_cand_orig  = zeros(16,0); 
+discard      = zeros(size(P,2),1); 
+discard_cand = zeros(0,1);
+[P,P_cand,P_cand_orig,T_cand_orig,X,discard,discard_cand] = ...
+    postProcessing(P, P_cand, P_cand_orig, T_cand_orig, X, ...
+    discard, discard_cand, p('discard_max'), p('discard_cand_max'));
 
 % Assign initial state. 
 state = struct; 
-state.T = inv([R_CW t3_CW; [0,0,0,1]]); 
-state.P = P;
-state.P_cand = zeros(2,0);  
-state.discard = zeros(size(P,2),1); 
-state.discard_cand = zeros(0,1); 
-state.X = X;
-state.last_reinit = 0; 
+state.T            = inv([R_CW t3_CW; [0,0,0,1]]); 
+state.P            = P;
+state.P_cand       = P_cand;   
+state.P_cand_orig  = P_cand_orig; 
+state.T_cand_orig  = T_cand_orig; 
+state.discard      = discard;
+state.discard_cand = discard_cand; 
+state.X            = X;
+state.last_reinit  = 0; 
 trajectory = [state];  %#ok<NBRAK>
+
+% Plotting. 
+figure
+plotPointCloud(X, P, img1); 
 
 disp("Initial transformation: "); 
 disp([R_CW t3_CW]); 
-fprintf('Initial number of matches: %d\n', size(P,2));
+fprintf('Initial number of matches: %d\n', size(P,2)); 
 
 %% Continuous operation.
 figure(2); 
@@ -153,149 +161,142 @@ for i = 2:size(imgs_contop,3)
     
     % Get last state information. 
     state_prev = trajectory(end); 
-    T_prev   = state_prev.T; 
-    P_prev   = state_prev.P; 
-    X_prev   = state_prev.X; 
+    T_prev           = state_prev.T; 
+    P_prev           = state_prev.P;
+    P_cand_prev      = state_prev.P_cand; 
+    P_cand_orig_prev = state_prev.P_cand_orig; 
+    T_cand_orig_prev = state_prev.T_cand_orig; 
+    discard          = state_prev.discard; 
+    discard_cand     = state_prev.discard_cand; 
+    X_prev           = state_prev.X; 
+    last_reinit_prev = state.last_reinit; 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%% KLT %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Track keypoints with MATLAB's KLT algorithm.
+    % Track keypoints using Matlab KLT algorithm. 
     disp("KL Tracking ...");   
     point_tracker = vision.PointTracker(...
         'MaxBidirectionalError', p('klt_max_bierror'));
-    initialize(point_tracker, fliplr(P_prev'), img_prev);
+    initialize(point_tracker, P_prev', img_prev);
     [points,validity] = point_tracker(img);
-    P = [];
-    Pdb = [];
-    X = [];
-    for l=1:size(validity,1)
-        if(validity(l)==1)
-            P = [P,(fliplr(points(l,:)))']; %#ok<AGROW>
-            Pdb = [Pdb,P_prev(:,l)]; %#ok<AGROW>
-            X = [X,X_prev(:,l)]; %#ok<AGROW>
-        end
-    end
+    discard(~validity) = inf; 
+    P = points'; 
     fprintf('KLT number of tracked keypoints: %d\n', nnz(validity));
-    
+    % Track candidates using Matlab KLT algorithm. 
+    P_cand = P_cand_prev; 
+    P_cand_orig = P_cand_orig_prev; 
+    T_cand_orig = T_cand_orig_prev; 
+    if size(P_cand_prev,2) > 0
+        initialize(point_tracker, P_cand_prev', img_prev);
+        [points,validity] = point_tracker(img);
+        discard_cand(~validity) = inf; 
+        P_cand = points'; 
+        fprintf('KLT number of tracked candidates: %d\n', nnz(validity));
+    end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%% P3P %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Either use P3P to track points or directly triangulate new landmarks.
-    do_triangulate = false; 
-    if nnz(validity) >= p('p3p_min_num') 
-        % Find new camera pose with MATLAB's P3P function.
-        image_points = fliplr(P');
-        world_points = X(1:3,:)';
-        [world_orientation,world_location,status] = estimateWorldCameraPose(...
-            image_points, world_points, K_matlab,...
-            'MaxReprojectionError', p('p3p_max_reproj_error'), ...
-            'MaxNumTrials', p('p3p_num_iter'));
-        % Convert T_WC->T_CW.
-        T_CW = inv([world_orientation,world_location';[0,0,0,1]]);
-        R_CW = T_CW(1:3,1:3);
-        t3_CW = T_CW(1:3,4);
-        % Check whether it is necessary to triangulate new landmarks, 
-        % after motion has been estimated.
-        if size(X,2)<p('reinit_min_num_landmk')
-            do_triangulate = true; 
-            fprintf('Few landmarks, '); 
-        elseif nnz(status)<p('reinit_min_num_inlier')
-            do_triangulate = true; 
-            fprintf('P3P bad status, '); 
-         %elseif abs(mean(P(2,:))-320)>300 || abs(mean(P(1,:))-240)>200
-         %   do_triangulate = true; 
-         %   fprintf('Landmarks badly distributed, '); 
-         %elseif abs(var(P(2,:)))<p('reinit_min_kp_var') || ...
-         %       abs(var(P(1,:)))<p('reinit_min_kp_var')
-         %   do_triangulate = true; 
-         %   fprintf('Landmarks badly distributed, '); 
-        end
-    else 
-        do_triangulate = true; 
-        fprintf('Not enough KLT tracked points, '); 
-    end
+    [T,discard] = ransacLocalization(P,X,discard, K, ...
+                  p('p3p_min_num'), p('p3p_num_iter'), p('p3p_max_error'));
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%% Re-Initialization %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Triangulate new landmarks if necessary. 
-    if do_triangulate
-        fprintf('triangulating new landmarks...\n')
-        % Find most distant database image with sufficient matches, i.e. 
-        % start with large distant and decrease it until either the 
-        % previous (shift = 1) image or a sufficient number of matches 
-        % is obtained. 
-        do_research = true; 
-        shift = min(p('reinit_max_base'),size(trajectory,1)-1);
-        assert(shift ~= 0); 
-        while do_research
-            img_db  = imgs_contop(:,:,i-shift); 
-            T_CW_db = trajectory(end-shift).T; 
-            [P_new, Pdb_new] = harrisMatching(img, img_db, ...
-                p('cont_num_kps'),p('harris_r'),p('harris_kappa'),...
-                p('harris_r_sup'),p('harris_r_desc'),p('match_lambda'));             
-            fprintf('... number of matches: %d\n', size(P_new,2)); 
-            % Check whether matches are sufficiently many. 
-            if size(P_new,2) > p('reinit_min_num_landmk')||shift == 1
-                do_research = false; 
-            else
-                shift = shift - 1; 
-            end
-        end
-        % Find the norm of the transform from the last to the current
-        % frame. Required for scaling the translation vector 
-        % from estimateTrafoFund.
-        T_CcCp = T_prev*inv(trajectory(end-shift-1).T);
-        t_norm_base = norm(T_CcCp(1:3,4)); 
-        
-        % Triangulate new landmarks.
-        % OBSERVATION: We have a problem here that there is noise in Z and Y
-        % direction. Without it, the difference was exactly 0.5, as GT
-        % suggests, but with GT the distance was 1.36. This is okay because
-        % we triangulated a completely new pointcloud. But this will
-        % inevitably lead to drift and errors in the long term.
-        [R_CcCp,t3_CcCp,X_new,P_new,Pdb_new,~] = estimateTrafoFund(...
-                        Pdb_new, P_new, K,t_norm_base,p('fund_num_iter'));
-        T_CW  = [R_CcCp t3_CcCp;[0,0,0,1]]*T_CW_db;
-        R_CW  = T_CW(1:3,1:3);
-        t3_CW = T_CW(1:3,4);
-        % Transform old keypoints in current camera frame and append new 
-        % and old landmarks. 
-        %X_old = T_CW_db*X;        
-        %X_cand = [X_old X_new];
-        %P_cand = [P P_new]; 
-        %Pdb_cand = [Pdb Pdb_new]; 
-        % Discard candidates. 
-        %[X, P, discarded] = discard(X_cand, P_cand, p('discard_lm_max_dis'));
-        %Pdb = Pdb_cand(:,discarded); 
-        X = inv(T_CW_db)*X_new;
-        P = P_new; 
-        fprintf('... number of new landmarks: %d\n', size(X,2));
+    do_reinit = false; 
+    if sum(discard == 0) < p('reinit_min_kps')
+        do_reinit = true; 
+        fprintf('# Keypoints below threshold, reinitializing ...');
     end
-           
+    if do_reinit
+        % Feature matching using Harris corner detection. 
+        [P, Pdb] = harrisMatching(img1, img0, ...
+                   p('init_num_kps'),p('harris_r'),p('harris_kappa'),...
+                   p('harris_r_sup'),p('harris_r_desc'),p('match_lambda'));
+        fprintf('... number of matches: %d\n', size(P,2)); 
+
+        % Estimate the F by ransac, extract the correct transformation 
+        % as well as triangulated point cloud. 
+        [R_CW, t3_CW, X, P] = estimateTrafoFund(Pdb, P, ...
+                              K, p('fund_num_iter'), p('fund_max_error'));
+        T = T_prev*inv([R_CW t3_CW; [0,0,0,1]]);
+        
+        % Look for new candidates. 
+        P_cand_new = selectKeypoints(...
+                    harris(img, p('harris_r'), p('harris_kappa')), ...
+                    p('cont_num_kps'), p('harris_r_sup'));
+        P_cand_new = flipud(P_cand_new); 
+        P_current  = [P(:,discard == 0) P_new P_cand(:,discard_cand == 0)];
+        P_cand_new = P_cand_new(:, ...
+            min(pdist2(P_cand_new',P_current'),[],2) > p('search_min_dis'));
+        P_cand_orig_new = P_cand_new; 
+        T_cand_orig_new = T; 
+
+        % Post Processing. 
+        [P,P_cand,P_cand_orig,T_cand_orig,X,discard,discard_cand] = ...
+            postProcessing(P, P_cand, P_cand_orig, T_cand_orig, X, ...
+            discard, discard_cand, p('discard_max'), p('discard_cand_max'));
+        
+        % Renew state and add to trajectory.
+        state = struct; 
+        state.T            = T; 
+        state.P            = P;
+        state.P_cand       = P_cand;  
+        state.P_cand_orig  = P_cand_orig; 
+        state.T_cand_orig  = T_cand_orig; 
+        state.discard      = discard;
+        state.discard_cand = discard_cand; 
+        state.X            = T_prev*X;
+        state.last_reinit  = 0; 
+        trajectory = [trajectory; state];   %#ok<AGROW>
+        continue; 
+    end
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%%% Candidate Selection %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%%% New Candidates Search %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    P_cand_new = selectKeypoints(...
+                harris(img, p('harris_r'), p('harris_kappa')), ...
+                p('cont_num_kps'), p('harris_r_sup'));
+    P_cand_new = flipud(P_cand_new); 
+    P_current  = [P(:,discard == 0) P_new P_cand(:,discard_cand == 0)];
+    P_cand_new = P_cand_new(:, ...
+        min(pdist2(P_cand_new',P_current'),[],2) > p('search_min_dis'));
+    P_cand_orig_new = P_cand_new; 
+    T_cand_orig_new = T; 
+
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%% Post-Processing %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Check whether any landmarks are still available, otherwise take 
-    % previous ones. 
-    if size(X, 2) < p('post_min_num_landmk')
-       X = X_prev; 
-       disp('Taking previous set of landmarks');
-    end 
+    [P,P_cand,P_cand_orig,T_cand_orig,X,discard,discard_cand] = ...
+        postProcessing(P, P_cand, P_cand_orig, T_cand_orig, X, ...
+        discard, discard_cand, p('discard_max'), p('discard_cand_max'));
+    last_reinit = last_reinit_prev + 1; 
         
     % Renew state and add to trajectory.
-    state = struct; 
-    state.T = [R_CW t3_CW; [0,0,0,1]];  
-    state.P = P; 
-    state.X = X; 
+    state              = struct; 
+    state.T            = T;  
+    state.P            = [P P_new]; 
+    state.P_cand       = [P_cand P_cand_new];
+	state.P_cand_orig  = [P_cand_orig P_cand_orig_new]; 
+    state.T_cand_orig  = [T_cand_orig T_cand_orig_new]; 
+    state.discard      = [discard zeros(size(P_new,2),1)]; 
+    state.discard_cand = [discard_cand zeros(size(P_cand_new,2),1)]; 
+    state.X            = [X X_new]; 
+    state.last_reinit  = last_reinit; 
     trajectory = [trajectory; state]; %#ok<AGROW>
-    fprintf('Position: x=%f, y=%f, z=%f\n', ...
-            state.T(1,4),state.T(2,4),state.T(3,4));
-    % Plotting. 
+    
+	% Plotting. 
     plotOverall(img, trajectory);
     %plotKPs(P, img); 
-    %plotMatches(P, Pdb, img, img); 
+    %plotMatches(P, Pdb, img, img);
+    
+    fprintf('Position: x=%f, y=%f, z=%f\n', ...
+            state.T(1,4),state.T(2,4),state.T(3,4));
     pause(0.01);
 end
 
