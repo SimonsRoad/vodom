@@ -1,7 +1,19 @@
 # vodom - Monocular Visual Odometry
+**Authors:** Nikhilesh Alatur, Simon Schaefer
 
 ## Problem
 The goal of this mini-project is to implement a simple, calibrated, monocular, visual odometry (VO) pipeline with the most essential features: initialization of 3D landmarks, keypoint tracking between two frames, pose estimation using established 2D - 3D correspondences and triangulation of new landmarks. The algorithm is implemented in Matlab(Version R2018a) and tested on several datasets, such as KITTI, Malaga, a parking garage and a self-recorded dataset at ETH. 
+
+## Prerequisites
+The whole pipeline was developed and tested in MATLAB R2018a. Only MATLAB's own functions or the functions provided in this GitHub repository were used.
+The whole pipeline was able to run on a laptop with an Intel i7-7500U mobile dual-core (2 x 2.7GHz) with a total of four logical threads and 16 GB of RAM. 
+However, MATLAB was set to only use 2 threads and at maximum 1.3 GB of RAM.
+
+## User Manual
+First, ensure that the *datasets* folder exist in the same folder as the *main.m* script. As a hint, you can look at which files are loaded in the section *Choose and load dataset* in the *main.m* script.
+Then you just have to select the dataset you want the pipeline to work with. This can also be done in the first line of the section *Choose and load dataset*.
+Now, you are all set to go and you can hit **RUN**.
+If you want change any parameters (e.g which bootstrap frames to use and therefore defining where to start the pipeline, this can be done in the script *loadParameters.m*.
 
 ## Conventions
 Pose transformations between frames $A$ and $B$ are denoted with rotation matrix and translation vector $R_{AB}$ and $t_{AB}$ such that the origin of $B$ expressed in $A$ is at $t_{AB}$ and the $(x,y,z)$ unit vectors of frame $B$ expressed in frame $A$ are the columns of $R_{AB}$.The frame $W$ denotes the world frame and $C$ the camera frame. In the datasets used the camera looks in positive $z$ direction, $x$ points to the right and $y$ down in the image, such that we are mainly interested in the $x-z$-plane. We assume that the 0th camera frame coincides with the world frame.
