@@ -46,8 +46,8 @@ Both the corner detection as well as the patch description are implemented using
 
 #### Matching Lambda
 
-<img src="report/matching_lambda_bad.png" alt="" style="width: 100px;"/>
-<img src="report/matching_lambda_good.png" alt="" style="width: 100px;"/>
+<img src="report/matching_lambda_bad.png" alt="" style="width: 50px;"/>
+<img src="report/matching_lambda_good.png" alt="" style="width: 50px;"/>
 Figure 3: Feature matching - Effect of lambda (left: lambda = 10, right: lambda = 5). Worse initial transformation in case of larger lambda (parking dataset).
 
 To match the feature, we look for matches where the SSD between the descriptors of each possible feature pair is minimized. The closeness of being a match is determined by lambda (in relative to smallest SSD value), Fig. 3 displays the effect of the lambda on the final point cloud and motion estimate. A large lambda lets pass a lot of eventual matches which results in more landmarks to track later on but also in a worse initial point cloud (comp. lambda = 10, unrealistic motion, in comparison to lambda = 5), another dataset specific trade-off.
@@ -64,8 +64,8 @@ For KLT the Matlab vision toolbox (function: vision.PointTracker) is utilized, a
 
 The bidirectional error implies another trade-off similar to the lambda-trade-off above, accepting more keypoint matches to reason the pose estimate on more keypoints or merely accept comparable "good" trackings. However, the algorithm turned out to be more reliable allowing infinite bidirectional tracking error for mainly two reasons. First, accepting less matches can result in re-initialization (as shown later on) introducing more outliers than continuing tracking and second, the pose estimate involves RANSAC so that "bad" matches probably won't be taken into account anyway. 
 
-<img src="report/parking_100bi.png" alt="" style="width: 100px;"/>
-<img src="report/parking_infbi.png" alt="" style="width: 100px;"/>
+<img src="report/parking_100bi.png" alt="" style="width: 50px;"/>
+<img src="report/parking_infbi.png" alt="" style="width: 50px;"/>
 Figure 4: KLT - Effect of bidirectional error (left: be = 100, right: be = infinite). More inaccurate motion estimates (blue line) in case of smaller allowed bidirectional error  (parking dataset).
 
 #### P3P
