@@ -64,8 +64,10 @@ For KLT the Matlab vision toolbox (function: vision.PointTracker) is utilized, a
 
 The bidirectional error implies another trade-off similar to the lambda-trade-off above, accepting more keypoint matches to reason the pose estimate on more keypoints or merely accept comparable "good" trackings. However, the algorithm turned out to be more reliable allowing infinite bidirectional tracking error for mainly two reasons. First, accepting less matches can result in re-initialization (as shown later on) introducing more outliers than continuing tracking and second, the pose estimate involves RANSAC so that "bad" matches probably won't be taken into account anyway. 
 
-<img src="report/parking_100bi.png" alt="" style="width: 50px;"/>
-<img src="report/parking_infbi.png" alt="" style="width: 50px;"/>
+<p float="left">
+  <img src="report/parking_100bi.png" width="100" />
+  <img src="report/parking_infbi.png" width="100" />
+</p>
 Figure 4: KLT - Effect of bidirectional error (left: be = 100, right: be = infinite). More inaccurate motion estimates (blue line) in case of smaller allowed bidirectional error  (parking dataset).
 
 #### P3P
