@@ -1,5 +1,6 @@
 # vodom - Monocular Visual Odometry
 **Authors:** Nikhilesh Alatur, Simon Schaefer
+**Video: ** https://www.youtube.com/watch?v=hkGKmDhGA3c
 
 ## Problem
 The goal of this mini-project is to implement a simple, calibrated, monocular, visual odometry (VO) pipeline with the most essential features: initialization of 3D landmarks, keypoint tracking between two frames, pose estimation using established 2D - 3D correspondences and triangulation of new landmarks. The algorithm is implemented in Matlab(Version R2018a) and tested on several datasets, such as KITTI, Malaga, a parking garage and a self-recorded dataset at ETH. 
